@@ -35,7 +35,7 @@ class PlaceSearch(private val places: PlacesRepository) {
             .filter { it.name.isNotBlank() && it.name.lowercase().contains(needle) }
             .map { p ->
                 val starts = p.name.lowercase().startsWith(needle)
-                val score = (if (starts) 0 else 1_000_000.0) + (if (p.category == PlaceCategory.TOWN) 0.0 else 500_000.0) + distanceMeters(near, p.point)
+                val score = (if (starts) 0.0 else 1_000_000.0) + (if (p.category == PlaceCategory.TOWN) 0.0 else 500_000.0) + distanceMeters(near, p.point)
                 score to p
             }
             .sortedBy { it.first }
