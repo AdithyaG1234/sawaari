@@ -253,7 +253,7 @@ fun MapScreen(
                 SharedPlanBanner(
                     plan = groupPlan,
                     by = groupPlanBy,
-                    onLoad = { nav.loadPlan(groupPlan) },
+                    onLoad = { nav.loadPlan(groupPlan); hiddenPlan = groupPlan },
                     onHide = { hiddenPlan = groupPlan },
                 )
             }
