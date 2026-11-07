@@ -146,7 +146,7 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val text = "Join my ride \"${g.name}\" on Sawaari. Open the Group tab and enter code ${g.code}.\n" +
-                                "Get the app: https://github.com/AdithyaG1234/sawaari/releases/download/latest-debug/sawaari-debug.apk"
+                                "Get the app: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk"
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Invite riders"))
                         }) {
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Invite")
