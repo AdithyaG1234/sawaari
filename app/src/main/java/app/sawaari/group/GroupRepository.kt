@@ -96,6 +96,16 @@ data class RideGroup(
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
  *   groups/{code}/alerts/{id}       {uid, name, lat?, lon?, ts}
  */
+/**
+ * The app's Realtime Database. google-services.json only carries the database address if it was
+ * downloaded after the database was created, so fall back to the Singapore (asia-southeast1) default.
+ */
+fun sawaariDatabase(): FirebaseDatabase {
+    val options = FirebaseApp.getInstance().options
+    val url = options.databaseUrl ?: "https://${options.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app"
+    return FirebaseDatabase.getInstance(url)
+}
+
 class GroupRepository(context: Context, private val scope: CoroutineScope) {
 
     private val prefs = context.getSharedPreferences("group", Context.MODE_PRIVATE)
@@ -104,13 +114,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
     val configured: Boolean = FirebaseApp.getApps(context).isNotEmpty()
 
     private val auth by lazy { FirebaseAuth.getInstance() }
-    private val db by lazy {
-        // google-services.json only carries the database address if it was downloaded after
-        // the database was created, so fall back to the Singapore (asia-southeast1) default.
-        val options = FirebaseApp.getInstance().options
-        val url = options.databaseUrl ?: "https://${options.projectId}-default-rtdb.asia-southeast1.firebasedatabase.app"
-        FirebaseDatabase.getInstance(url)
-    }
+    private val db by lazy { sawaariDatabase() }
 
     private val _group = MutableStateFlow<RideGroup?>(null)
     val group: StateFlow<RideGroup?> = _group.asStateFlow()

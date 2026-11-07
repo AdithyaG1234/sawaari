@@ -60,10 +60,23 @@ jobs:
             -jar gh.jar import routing/gh-config.yml
       - name: Zip pack
         run: cd graph && zip -r -9 "../routing-${{ matrix.id }}.zip" . && ls -lh ../routing-*.zip
+      # Places along routes: food, fuel, mechanics, tyre shops, hospitals.
+      - name: Extract places
+        run: |
+          osmium tags-filter area.osm.pbf \
+            nwr/amenity=restaurant,cafe,fast_food,food_court,fuel,hospital,clinic \
+            nwr/shop=car_repair,motorcycle_repair,motorcycle,tyres \
+            nwr/service:vehicle:tyres=yes \
+            -o places.osm.pbf
+          osmium export places.osm.pbf -f geojsonseq --add-unique-id=type_id --geometry-types=point,polygon -o places.geojsonseq
+          python3 routing/extract_pois.py places.geojsonseq "pois-${{ matrix.id }}.tsv.gz"
+          ls -lh pois-*.tsv.gz
       - uses: actions/upload-artifact@v5
         with:
           name: routing-${{ matrix.id }}
-          path: routing-${{ matrix.id }}.zip
+          path: |
+            routing-${{ matrix.id }}.zip
+            pois-${{ matrix.id }}.tsv.gz
           retention-days: 3
 
   release:
@@ -84,6 +97,9 @@ jobs:
           make_latest: false
           body: |
             Offline routing data for Sawaari turn-by-turn navigation (GraphHopper 4.0, car profile).
+            Places files (pois-*.tsv.gz): food, fuel, mechanics, tyre shops and hospitals for each area.
             Map data © OpenStreetMap contributors, ODbL.
-          files: packs/*.zip
+          files: |
+            packs/*.zip
+            packs/*.tsv.gz
           overwrite_files: true

@@ -60,6 +60,14 @@ import app.sawaari.geo.GeoPoint
 import app.sawaari.location.locationUpdates
 import app.sawaari.nav.NavigationController
 import app.sawaari.nav.RidePlan
+import app.sawaari.places.PlaceCategory
+import app.sawaari.places.PlaceDialog
+import app.sawaari.places.PlaceMatcher
+import app.sawaari.places.PlaceOnRoute
+import app.sawaari.places.PlacesPanel
+import app.sawaari.places.PlacesRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import app.sawaari.group.MeetingPoint
 import app.sawaari.group.MeetingPointDialog
 import app.sawaari.group.RiderDetailsDialog
@@ -99,6 +107,7 @@ private const val SRC_ROUTE = "sawaari-route"
 private const val SRC_ME = "sawaari-me"
 private const val SRC_DEST = "sawaari-dest"
 private const val SRC_RIDERS = "sawaari-riders"
+private const val SRC_POIS = "sawaari-pois"
 
 /**
  * Full-screen map. Works offline for downloaded areas.
@@ -126,6 +135,7 @@ fun MapScreen(
     onGroupRoute: (List<GeoPoint>?) -> Unit = {},
     rideTo: GeoPoint? = null,
     onRideToHandled: () -> Unit = {},
+    places: PlacesRepository? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -140,6 +150,39 @@ fun MapScreen(
         onGroupRoute(if (nav.navigating && groupPlan != null && nav.plan == groupPlan) nav.route?.points else null)
     }
     var tappedRider by remember { mutableStateOf<String?>(null) }
+
+    // Places along the route (food, fuel, mechanics, tyres, hospitals).
+    val visiblePlacesRef = remember { object { var value: List<PlaceOnRoute> = emptyList() } }
+    var placeCategory by remember { mutableStateOf<PlaceCategory?>(null) }
+    var placesOnRoute by remember { mutableStateOf<List<PlaceOnRoute>>(emptyList()) }
+    var placesLoading by remember { mutableStateOf(false) }
+    var openPlace by remember { mutableStateOf<PlaceOnRoute?>(null) }
+    LaunchedEffect(nav.route, placeCategory) {
+        val r = nav.route
+        val cat = placeCategory
+        if (r == null || cat == null || places == null) { placesOnRoute = emptyList(); return@LaunchedEffect }
+        placesLoading = true
+        placesOnRoute = withContext(Dispatchers.Default) {
+            val all = places.placesNear(r.points.first()) + places.placesNear(r.points.last())
+            PlaceMatcher.alongRoute(r, all.distinctBy { it.id }.filter { it.category == cat })
+        }
+        placesLoading = false
+    }
+    val currentAlong = if (nav.navigating) nav.route?.let { r -> nav.progress?.let { r.geometryLength - it.distanceRemaining } } else null
+    val visiblePlaces = remember(placesOnRoute, currentAlong?.let { (it / 500).toInt() }) {
+        (if (currentAlong != null) placesOnRoute.filter { it.alongMeters >= currentAlong - 200 } else placesOnRoute).take(40)
+    }
+    visiblePlacesRef.value = visiblePlaces
+    LaunchedEffect(style, visiblePlaces) {
+        val features = visiblePlaces.map { p ->
+            Feature.fromGeometry(Point.fromLngLat(p.place.point.lon, p.place.point.lat)).apply {
+                addStringProperty("id", p.place.id)
+                addStringProperty("label", p.place.category.letter)
+                addStringProperty("color", p.place.category.color)
+            }
+        }
+        style?.getSourceAs<GeoJsonSource>(SRC_POIS)?.setGeoJson(FeatureCollection.fromFeatures(features))
+    }
     var meetAt by remember { mutableStateOf<GeoPoint?>(null) }
 
     val mapView = rememberMapViewWithLifecycle()
@@ -261,7 +304,9 @@ fun MapScreen(
                             val box = android.graphics.RectF(px.x - 40, px.y - 40, px.x + 40, px.y + 40)
                             val hit = m.queryRenderedFeatures(box, "sawaari-riders").firstOrNull()?.getStringProperty("uid")
                             if (hit != null) tappedRider = hit
-                            hit != null
+                            val poi = if (hit == null) m.queryRenderedFeatures(box, "sawaari-pois").firstOrNull()?.getStringProperty("id") else null
+                            if (poi != null) openPlace = visiblePlacesRef.value.firstOrNull { it.place.id == poi }
+                            hit != null || poi != null
                         }
                         m.addOnMapLongClickListener { ll ->
                             if (!nav.navigating) pressedPoint = GeoPoint(ll.latitude, ll.longitude)
@@ -323,6 +368,14 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SnackbarHost(snackbar)
+            if (nav.route != null && places != null) {
+                PlacesPanel(
+                    selected = placeCategory, onSelect = { placeCategory = it },
+                    places = visiblePlaces, loading = placesLoading, currentAlong = currentAlong,
+                    repo = places, onOpen = { openPlace = it },
+                )
+                Spacer(Modifier.size(8.dp))
+            }
             when {
                 nav.navigating -> Button(onClick = { nav.stop() }) {
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
@@ -366,6 +419,13 @@ fun MapScreen(
         )
     }
 
+    openPlace?.let { item ->
+        if (places != null) PlaceDialog(
+            item, places, nav.navigating,
+            onAddStop = { nav.addStopAhead(item.place.point) },
+            onDismiss = { openPlace = null },
+        )
+    }
     meetAt?.let { p ->
         MeetingPointDialog(p, onSave = { time, note -> onSetMeetingPoint?.invoke(p, time, note) }, onDismiss = { meetAt = null })
     }
@@ -575,6 +635,7 @@ private fun addOverlayLayers(style: Style) {
     style.addSource(GeoJsonSource(SRC_DEST))
     style.addSource(GeoJsonSource(SRC_ME))
     style.addSource(GeoJsonSource(SRC_RIDERS))
+    style.addSource(GeoJsonSource(SRC_POIS))
     style.addLayer(
         LineLayer("sawaari-route-casing", SRC_ROUTE).withProperties(
             PropertyFactory.lineColor("#0D47A1"),
@@ -589,6 +650,24 @@ private fun addOverlayLayers(style: Style) {
             PropertyFactory.lineWidth(6f),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+        )
+    )
+    style.addLayer(
+        CircleLayer("sawaari-pois", SRC_POIS).withProperties(
+            PropertyFactory.circleRadius(10f),
+            PropertyFactory.circleColor(Expression.toColor(Expression.get("color"))),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(2f),
+        )
+    )
+    style.addLayer(
+        SymbolLayer("sawaari-poi-labels", SRC_POIS).withProperties(
+            PropertyFactory.textField(Expression.get("label")),
+            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+            PropertyFactory.textSize(11f),
+            PropertyFactory.textColor("#FFFFFF"),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(true),
         )
     )
     style.addLayer(

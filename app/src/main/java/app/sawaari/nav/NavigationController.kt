@@ -58,6 +58,13 @@ class NavigationController(
         updatePlan { it.withStop(p) }
     }
     fun removeStop(index: Int) = updatePlan { it.withoutStop(index) }
+
+    /** Add a stop as the next one: while navigating, reroute through it now; otherwise just add it. */
+    fun addStopAhead(p: GeoPoint) {
+        if (!navigating) { addStop(p); if (plan.end != null) planRoute(); return }
+        plan = plan.copy(stops = plan.stops.take(stopsReached) + p + plan.stops.drop(stopsReached))
+        reroute()
+    }
     fun clearEnd() = updatePlan { it.copy(end = null) }
 
     /** Replace the whole plan, e.g. with the one the leader shared, and plan the route. */

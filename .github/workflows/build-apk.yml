@@ -23,6 +23,8 @@ jobs:
       # so no separate setup-android step is needed.
       - uses: gradle/actions/setup-gradle@v5
       - run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleDebug assembleRelease --stacktrace
+        env:
+          PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
       - uses: actions/upload-artifact@v5
         with:
           name: sawaari-debug-apk
