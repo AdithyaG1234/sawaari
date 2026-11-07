@@ -26,7 +26,9 @@ class NavigationController(
     private val scope: CoroutineScope,
 ) {
     var location by mutableStateOf<Location?>(null); private set
-    var destination by mutableStateOf<GeoPoint?>(null); private set
+    /** Start (optional), stops and destination. Long-press the map to build it. */
+    var plan by mutableStateOf(RidePlan()); private set
+    val destination: GeoPoint? get() = plan.end
     var route by mutableStateOf<Route?>(null); private set
     var navigating by mutableStateOf(false); private set
     var progress by mutableStateOf<NavProgress?>(null); private set
@@ -37,6 +39,9 @@ class NavigationController(
     private val prompts = VoicePrompts()
     private var offRouteCount = 0
     private var rerouteJob: Job? = null
+    /** Stops already reached during this navigation, so a reroute only goes to the ones ahead. */
+    private var stopsReachedBefore = 0
+    var stopsReached by mutableStateOf(0); private set
 
     private var ttsReady = false
     private var ttsConfigured = false
@@ -46,25 +51,42 @@ class NavigationController(
 
     val myPosition: GeoPoint? get() = location?.let { GeoPoint(it.latitude, it.longitude) }
 
-    fun chooseDestination(p: GeoPoint) {
+    fun chooseDestination(p: GeoPoint) = updatePlan { it.copy(end = p) }
+    fun setStart(p: GeoPoint?) = updatePlan { it.copy(start = p) }
+    fun addStop(p: GeoPoint) {
+        if (plan.stops.size >= RidePlan.MAX_STOPS) { message = "You can add up to ${RidePlan.MAX_STOPS} stops."; return }
+        updatePlan { it.withStop(p) }
+    }
+    fun removeStop(index: Int) = updatePlan { it.withoutStop(index) }
+    fun clearEnd() = updatePlan { it.copy(end = null) }
+
+    /** Replace the whole plan, e.g. with the one the leader shared, and plan the route. */
+    fun loadPlan(p: RidePlan) {
+        if (navigating) stop()
+        plan = p
+        route = null
+        planRoute()
+    }
+
+    private fun updatePlan(change: (RidePlan) -> RidePlan) {
         if (navigating) return
-        destination = p
+        plan = change(plan)
         route = null
     }
 
     fun clear() {
         stop()
-        destination = null
+        plan = RidePlan()
         route = null
     }
 
     fun planRoute() {
-        val to = destination ?: return
-        val from = myPosition ?: run { message = "Waiting for your GPS location…"; return }
+        if (plan.end == null) { message = "Long-press the map and choose End here to set the destination."; return }
+        val points = plan.waypoints(myPosition) ?: run { message = "Waiting for your GPS location…"; return }
         busy = true
         scope.launch {
             try {
-                route = routing.route(from, to)
+                route = routing.route(points)
             } catch (e: RoutingException) {
                 message = e.message
             } catch (e: Exception) {
@@ -80,6 +102,8 @@ class NavigationController(
         tracker = NavigationTracker(r)
         prompts.reset()
         offRouteCount = 0
+        stopsReachedBefore = 0
+        stopsReached = 0
         navigating = true
         r.steps.firstOrNull()?.let { speak(it.text) }
         location?.let { onLocation(it) }
@@ -104,8 +128,13 @@ class NavigationController(
             speak("You have arrived at your destination.")
             stop()
             route = null
-            destination = null
+            plan = RidePlan()
             return
+        }
+        val reached = stopsReachedBefore + RidePlan.stopsPassed(t.route, t.route.geometryLength - p.distanceRemaining)
+        if (reached > stopsReached) {
+            stopsReached = reached
+            speak(if (reached < plan.stops.size) "You've reached stop $reached." else "You've reached your last stop.")
         }
 
         val limit = max(OFF_ROUTE_METERS, if (loc.hasAccuracy()) loc.accuracy.toDouble() * 1.5 else 0.0)
@@ -120,12 +149,15 @@ class NavigationController(
     }
 
     private fun reroute() {
-        val to = destination ?: return
+        val to = plan.end ?: return
         val from = myPosition ?: return
         speak("Recalculating.")
+        // Go on to the stops not yet reached, then the destination.
+        val ahead = plan.stops.drop(stopsReached)
         rerouteJob = scope.launch {
             try {
-                val r = routing.route(from, to)
+                val r = routing.route(listOf(from) + ahead + to)
+                stopsReachedBefore = stopsReached
                 route = r
                 tracker = NavigationTracker(r)
                 prompts.reset()

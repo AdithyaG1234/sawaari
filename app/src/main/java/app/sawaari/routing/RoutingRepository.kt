@@ -116,19 +116,21 @@ class RoutingRepository(context: Context, private val scope: CoroutineScope) {
     }
 
     /** True if some downloaded pack covers both points. */
-    fun hasCoverage(from: GeoPoint, to: GeoPoint) = coveringPack(from, to) != null
+    fun hasCoverage(from: GeoPoint, to: GeoPoint) = coveringPack(listOf(from, to)) != null
 
-    private fun coveringPack(from: GeoPoint, to: GeoPoint) = routingPacks.firstOrNull {
-        _states.value[it.id] is PackState.Ready && it.contains(from.lat, from.lon) && it.contains(to.lat, to.lon)
+    private fun coveringPack(points: List<GeoPoint>) = routingPacks.firstOrNull { pack ->
+        _states.value[pack.id] is PackState.Ready && points.all { pack.contains(it.lat, it.lon) }
     }
 
+    suspend fun route(from: GeoPoint, to: GeoPoint): Route = route(listOf(from, to))
+
     /** Compute a route fully offline. Throws [RoutingException] with a rider-friendly message. */
-    suspend fun route(from: GeoPoint, to: GeoPoint): Route = withContext(Dispatchers.IO) {
-        val pack = coveringPack(from, to) ?: run {
-            val candidate = routingPacks.firstOrNull { it.contains(from.lat, from.lon) && it.contains(to.lat, to.lon) }
+    suspend fun route(points: List<GeoPoint>): Route = withContext(Dispatchers.IO) {
+        val pack = coveringPack(points) ?: run {
+            val candidate = routingPacks.firstOrNull { pack -> points.all { pack.contains(it.lat, it.lon) } }
             throw RoutingException(
                 if (candidate != null) "Download the \"${candidate.name}\" routing pack in Offline maps first."
-                else "Offline navigation isn't available for this trip yet. Start and destination must be inside one routing area."
+                else "Offline navigation isn't available for this trip yet. The start, stops and destination must all be inside one routing area."
             )
         }
         routerLock.withLock {
@@ -136,7 +138,7 @@ class RoutingRepository(context: Context, private val scope: CoroutineScope) {
                 loaded?.second?.close()
                 OfflineRouter(packDir(pack)).also { loaded = pack.id to it }
             }
-            router.route(from, to)
+            router.route(points)
         }
     }
 
