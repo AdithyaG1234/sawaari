@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
@@ -24,6 +25,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import app.sawaari.routing.PackState
+import app.sawaari.routing.RoutingPack
+import app.sawaari.routing.routingPacks
 import org.maplibre.android.geometry.LatLngBounds
 
 /** Offline maps manager: downloaded regions with size/progress, plus one-tap popular ride areas. */
@@ -33,6 +37,9 @@ fun DownloadsScreen(
     onDownloadPreset: (String, LatLngBounds) -> Unit,
     onDelete: (Long) -> Unit,
     onResume: (Long) -> Unit,
+    routingStates: Map<String, PackState>,
+    onDownloadRoutingPack: (RoutingPack) -> Unit,
+    onDeleteRoutingPack: (RoutingPack) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val context = LocalContext.current
@@ -71,6 +78,50 @@ fun DownloadsScreen(
                     if (!region.isComplete) {
                         LinearProgressIndicator(
                             progress = { region.progress },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+                        )
+                    }
+                }
+            }
+        }
+        item {
+            Column(Modifier.padding(top = 16.dp)) {
+                Text("Offline navigation", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    "Download routing data to get turn-by-turn directions with no signal. Get the map for the same area too.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        items(routingPacks, key = { "routing-" + it.id }) { pack ->
+            val state = routingStates[pack.id] ?: PackState.NotDownloaded
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(bottom = 8.dp)) {
+                    ListItem(
+                        headlineContent = { Text(pack.name) },
+                        supportingContent = {
+                            Text(
+                                when (state) {
+                                    PackState.NotDownloaded -> "Not downloaded"
+                                    is PackState.Downloading -> if (state.totalBytes > 0)
+                                        "Downloading ${(state.progress * 100).toInt()}% of ${Formatter.formatShortFileSize(context, state.totalBytes)}"
+                                    else "Downloading ${Formatter.formatShortFileSize(context, state.bytes)}"
+                                    is PackState.Ready -> "Ready offline · ${Formatter.formatShortFileSize(context, state.sizeBytes)}"
+                                    is PackState.Failed -> state.message
+                                }
+                            )
+                        },
+                        trailingContent = {
+                            when (state) {
+                                is PackState.Ready -> IconButton(onClick = { onDeleteRoutingPack(pack) }) { Icon(Icons.Default.Delete, "Delete") }
+                                is PackState.Downloading -> IconButton(onClick = { onDeleteRoutingPack(pack) }) { Icon(Icons.Default.Close, "Cancel") }
+                                else -> IconButton(onClick = { onDownloadRoutingPack(pack) }) { Icon(Icons.Default.Download, "Download") }
+                            }
+                        },
+                    )
+                    if (state is PackState.Downloading) {
+                        LinearProgressIndicator(
+                            progress = { state.progress },
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
                         )
                     }

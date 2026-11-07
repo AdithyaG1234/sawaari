@@ -1,0 +1,26 @@
+# GraphHopper 4.0 import config for Sawaari offline routing packs.
+# The app (app/src/main/java/app/sawaari/routing/OfflineRouter.kt) must use the SAME
+# GraphHopper version, flag encoder and profile, or it will refuse to load the pack.
+graphhopper:
+  datareader.file: ""
+  graph.location: graph
+  graph.flag_encoders: car
+  profiles:
+    - name: car
+      vehicle: car
+      weighting: fastest
+  profiles_ch:
+    - profile: car
+  profiles_lm: []
+  prepare.min_network_size: 200
+  graph.dataaccess: RAM_STORE
+
+server:
+  application_connectors:
+    - type: http
+      port: 8989
+      bind_host: localhost
+  admin_connectors:
+    - type: http
+      port: 8990
+      bind_host: localhost

@@ -27,6 +27,14 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    packaging {
+        resources {
+            excludes += setOf(
+                "META-INF/DEPENDENCIES", "META-INF/LICENSE*", "META-INF/NOTICE*", "META-INF/INDEX.LIST",
+                "META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "module-info.class", "META-INF/versions/9/module-info.class",
+            )
+        }
+    }
 }
 
 kotlin {
@@ -48,4 +56,13 @@ dependencies {
 
     // Free, open-source maps with offline region support (no API key, no per-user fees)
     implementation("org.maplibre.gl:android-sdk:13.7.1")
+
+    // Free, open-source offline routing. 4.0 is the newest line that still runs on Android
+    // with the plain "fastest" weighting; the routing packs are built with the same version.
+    implementation("com.graphhopper:graphhopper-core:4.0") {
+        exclude(group = "org.codehaus.janino") // only for server-side custom models, can't run on Android
+        exclude(group = "com.fasterxml.jackson.dataformat", module = "jackson-dataformat-xml") // GPX export, unused
+    }
+
+    testImplementation("junit:junit:4.13.2")
 }
