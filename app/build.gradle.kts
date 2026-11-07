@@ -20,6 +20,17 @@ android {
         versionName = "0.1.0"
     }
 
+    // A fixed debug key checked into the repo, so every CI build is signed the same way and
+    // installs over the previous one. (Only for test builds; a Play Store release needs its own secret key.)
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("sawaari-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         // Shrink the debug build too (it's the one we hand out), so it downloads reliably on mobile data.
         debug {
