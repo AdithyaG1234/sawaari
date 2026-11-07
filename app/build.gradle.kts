@@ -21,6 +21,11 @@ android {
     }
 
     buildTypes {
+        // Shrink the debug build too (it's the one we hand out), so it downloads reliably on mobile data.
+        debug {
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
