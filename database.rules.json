@@ -27,7 +27,7 @@
         },
         "plan": {
           ".write": "auth != null && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid",
-          ".validate": "!newData.exists() || (newData.child('end/lat').isNumber() && newData.child('end/lon').isNumber() && newData.child('ts').isNumber() && (!newData.child('stops').exists() || newData.child('stops').numChildren() <= 8))"
+          ".validate": "!newData.exists() || (newData.child('end/lat').isNumber() && newData.child('end/lon').isNumber() && newData.child('ts').isNumber() && !newData.child('stops').child('8').exists())"
         },
         "alerts": {
           "$id": {
