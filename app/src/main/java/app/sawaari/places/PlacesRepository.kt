@@ -43,7 +43,7 @@ class PlacesRepository(private val context: Context) {
     val googleEnabled: Boolean get() = BuildConfig.PLACES_API_KEY.isNotBlank()
     private val firebaseReady: Boolean get() = FirebaseApp.getApps(context).isNotEmpty()
 
-    private fun file(packId: String) = File(dir, "$packId.tsv.gz")
+    private fun file(packId: String) = File(dir, "$packId-v2.tsv.gz").also { File(dir, "$packId.tsv.gz").delete() }
 
     /** Places for the routing area that contains [p], downloading the area's file the first time. */
     suspend fun placesNear(p: GeoPoint): List<Place> = withContext(Dispatchers.IO) {

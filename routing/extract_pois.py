@@ -2,7 +2,8 @@
 """Turn `osmium export -f geojsonseq` output into the compact places file the app reads.
 
 Output: gzip TSV, one place per line: id, category, lat, lon, name, phone
-Categories: food, fuel, mechanic, tyres, hospital. Map data (c) OpenStreetMap contributors, ODbL.
+Categories: food, fuel, mechanic, tyres, hospital, sight (viewpoints, attractions, waterfalls),
+town (cities, towns, villages: used for offline search). Map data (c) OpenStreetMap contributors, ODbL.
 Usage: extract_pois.py places.geojsonseq out.tsv.gz
 """
 import gzip
@@ -12,6 +13,10 @@ import sys
 
 def category(t):
     amenity, shop = t.get("amenity", ""), t.get("shop", "")
+    if t.get("place") in ("city", "town", "village"):
+        return "town" if t.get("name") else None
+    if t.get("tourism") in ("viewpoint", "attraction") or t.get("waterway") == "waterfall":
+        return "sight" if t.get("name") else None
     if amenity in ("restaurant", "cafe", "fast_food", "food_court"):
         return "food"
     if amenity == "fuel":

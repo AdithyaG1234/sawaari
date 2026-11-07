@@ -2,6 +2,7 @@ package app.sawaari
 
 import android.Manifest
 import android.os.Build
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -49,8 +50,23 @@ import app.sawaari.offline.OfflineRegionRepository
 import app.sawaari.ui.theme.SawaariTheme
 
 class MainActivity : ComponentActivity() {
+    /** A route link that opened the app (Sawaari or Google Maps link, or text shared to Sawaari). */
+    private val incomingLink = mutableStateOf<String?>(null)
+
+    private fun linkFrom(intent: Intent?): String? = when (intent?.action) {
+        Intent.ACTION_VIEW -> intent.dataString
+        Intent.ACTION_SEND -> intent.getStringExtra(Intent.EXTRA_TEXT)
+        else -> null
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        linkFrom(intent)?.let { incomingLink.value = it }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        if (savedInstanceState == null) incomingLink.value = linkFrom(intent)
         enableEdgeToEdge()
         setContent {
             SawaariTheme {
@@ -72,6 +88,7 @@ class MainActivity : ComponentActivity() {
                 var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
                 val app = application as SawaariApp
                 LaunchedEffect(Unit) { repo.refresh() }
+                LaunchedEffect(incomingLink.value) { if (incomingLink.value != null) tab = 0 }
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
                 val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -133,6 +150,8 @@ class MainActivity : ComponentActivity() {
                             rideTo = rideTo,
                             onRideToHandled = { rideTo = null },
                             places = app.places,
+                            importLink = incomingLink.value,
+                            onImportHandled = { incomingLink.value = null },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."

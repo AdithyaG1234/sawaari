@@ -66,6 +66,12 @@ import app.sawaari.places.PlaceMatcher
 import app.sawaari.places.PlaceOnRoute
 import app.sawaari.places.PlacesPanel
 import app.sawaari.places.PlacesRepository
+import app.sawaari.places.PlaceSearch
+import app.sawaari.places.MapSearchBar
+import app.sawaari.share.RouteImportException
+import app.sawaari.share.RouteImporter
+import app.sawaari.share.RouteShare
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import app.sawaari.group.MeetingPoint
@@ -136,6 +142,8 @@ fun MapScreen(
     rideTo: GeoPoint? = null,
     onRideToHandled: () -> Unit = {},
     places: PlacesRepository? = null,
+    importLink: String? = null,
+    onImportHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -158,6 +166,30 @@ fun MapScreen(
     var style by remember { mutableStateOf<Style?>(null) }
     var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
     var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var pressedLabel by remember { mutableStateOf<String?>(null) }
+    val placeSearch = remember(places) { places?.let { PlaceSearch(it) } }
+    val importer = remember(placeSearch) { placeSearch?.let { RouteImporter(it) } }
+    fun importRoute(text: String) {
+        val imp = importer ?: return
+        scope.launch {
+            nav.message = "Opening the shared route…"
+            try {
+                val result = imp.import(text, nav.myPosition ?: map?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) })
+                result.names.forEach { (p, n) -> nav.setLabel(p, n) }
+                nav.loadPlan(result.plan)
+                val n = result.plan.stops.size
+                nav.message = "Route loaded" + (if (n > 0) " with $n stop${if (n > 1) "s" else ""}" else "") +
+                    (if (result.skipped > 0) ". ${result.skipped} place(s) couldn't be found." else ".")
+            } catch (e: RouteImportException) {
+                nav.message = e.message
+            } catch (e: Exception) {
+                nav.message = "Couldn't open that link."
+            }
+        }
+    }
+    LaunchedEffect(importLink, importer) {
+        if (importLink != null && importer != null) { importRoute(importLink); onImportHandled() }
+    }
     var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
@@ -310,7 +342,7 @@ fun MapScreen(
                             hit != null || poi != null
                         }
                         m.addOnMapLongClickListener { ll ->
-                            if (!nav.navigating) pressedPoint = GeoPoint(ll.latitude, ll.longitude)
+                            if (!nav.navigating) { pressedLabel = null; pressedPoint = GeoPoint(ll.latitude, ll.longitude) }
                             true
                         }
                         map = m
@@ -322,6 +354,20 @@ fun MapScreen(
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (nav.navigating) NavigationBanner(nav)
+            if (!nav.navigating && placeSearch != null) {
+                MapSearchBar(
+                    search = placeSearch,
+                    near = { map?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) } ?: nav.myPosition },
+                    onPick = { r ->
+                        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(r.point.lat, r.point.lon), 13.0), 800)
+                        nav.setLabel(r.point, r.name)
+                        pressedLabel = r.name
+                        pressedPoint = r.point
+                    },
+                    onLink = ::importRoute,
+                    onOpenLinkSettings = { openLinkSettings(context) },
+                )
+            }
             if (groupPlan != null && !iAmLeader && !nav.navigating && groupPlan != nav.plan && groupPlan != hiddenPlan) {
                 SharedPlanBanner(
                     plan = groupPlan,
@@ -353,7 +399,7 @@ fun MapScreen(
                     else if (p == null) nav.message = "Finding your location… this can take a minute outdoors."
                     else map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.lat, p.lon), 14.0), 800)
                 },
-                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 92.dp, end = 16.dp),
             ) { Icon(Icons.Default.MyLocation, contentDescription = "My location") }
         }
 
@@ -381,10 +427,13 @@ fun MapScreen(
                 nav.navigating -> Button(onClick = { nav.stop() }) {
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
                 }
-                !nav.plan.isEmpty -> RouteCard(nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan)
+                !nav.plan.isEmpty -> RouteCard(
+                    nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
+                    onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
+                )
                 else -> {
                     Text(
-                        "Long-press the map to set a start, stops or destination",
+                        "Search above or long-press the map to plan a ride",
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
@@ -401,10 +450,13 @@ fun MapScreen(
     pressedPoint?.let { p ->
         AlertDialog(
             onDismissRequest = { pressedPoint = null },
-            title = { Text("Add to your ride plan") },
+            title = { Text(pressedLabel ?: "Add to your ride plan") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        (if (pressedLabel != null) "Add to your ride plan · " else "") + "%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     Spacer(Modifier.size(4.dp))
                     FilledTonalButton(onClick = { nav.chooseDestination(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("End here (destination)") }
                     FilledTonalButton(onClick = { nav.addStop(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) {
@@ -458,7 +510,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?) {
+private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?, onShareRoute: () -> Unit) {
     val plan = nav.plan
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -469,15 +521,15 @@ private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?,
                 Text("${formatDistance(r.distanceMeters)} · ${formatDuration(r.timeMillis)}", style = MaterialTheme.typography.titleLarge)
             }
             // Start, stops, destination, each removable.
-            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${coord(plan.start)}",
+            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${nav.labelFor(plan.start) ?: coord(plan.start)}",
                 onRemove = plan.start?.let { { nav.setStart(null) } })
             plan.stops.forEachIndexed { i, p ->
-                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${coord(p)}", onRemove = { nav.removeStop(i) })
+                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${nav.labelFor(p) ?: coord(p)}", onRemove = { nav.removeStop(i) })
             }
-            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${coord(it)}" } ?: "Destination: long-press the map, then End here",
+            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${nav.labelFor(it) ?: coord(it)}" } ?: "Destination: search above, or long-press the map",
                 onRemove = plan.end?.let { { nav.clearEnd() } })
             Text(
-                if (r == null) "Long-press the map to add stops. Routes are calculated on your phone, no signal needed."
+                if (r == null) "Search above or long-press the map to add stops. Routes are calculated on your phone, no signal needed."
                 else "Fastest route through your stops, calculated offline",
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -494,6 +546,11 @@ private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?,
                     }
                 }
                 OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
+            }
+            if (plan.end != null) {
+                TextButton(onClick = onShareRoute) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share route (WhatsApp etc.)")
+                }
             }
             if (onShare != null && plan.end != null) {
                 val shared = sharedPlan == plan
@@ -741,4 +798,13 @@ private fun rememberMapViewWithLifecycle(): MapView {
         onDispose { lifecycle.removeObserver(observer) }
     }
     return mapView
+}
+
+/** Android 12+: the page where the rider lets Sawaari open Google Maps links. */
+private fun openLinkSettings(context: android.content.Context) {
+    val pkg = android.net.Uri.parse("package:${context.packageName}")
+    val intent = if (android.os.Build.VERSION.SDK_INT >= 31)
+        android.content.Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg)
+    else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
+    runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }

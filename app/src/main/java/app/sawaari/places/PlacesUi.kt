@@ -62,7 +62,7 @@ fun PlacesPanel(
 ) {
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            PlaceCategory.entries.forEach { c ->
+            PlaceCategory.entries.filter { it.inChips }.forEach { c ->
                 FilterChip(
                     selected = selected == c,
                     onClick = { onSelect(if (selected == c) null else c) },

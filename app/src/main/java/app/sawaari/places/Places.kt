@@ -5,12 +5,16 @@ import app.sawaari.geo.distanceMeters
 import app.sawaari.routing.Route
 import kotlin.math.floor
 
-enum class PlaceCategory(val key: String, val label: String, val letter: String, val color: String, val fallbackName: String) {
+enum class PlaceCategory(
+    val key: String, val label: String, val letter: String, val color: String, val fallbackName: String, val inChips: Boolean = true,
+) {
     FOOD("food", "Food", "F", "#D84315", "Restaurant"),
     FUEL("fuel", "Fuel", "P", "#1565C0", "Fuel station"),
     MECHANIC("mechanic", "Mechanic", "M", "#4E342E", "Mechanic"),
     TYRES("tyres", "Tyres", "T", "#37474F", "Tyre shop"),
-    HOSPITAL("hospital", "Hospital", "H", "#C62828", "Hospital");
+    HOSPITAL("hospital", "Hospital", "H", "#C62828", "Hospital"),
+    SIGHT("sight", "Sights", "V", "#2E7D32", "Viewpoint"),
+    TOWN("town", "Town", "", "#000000", "Town", inChips = false);
 
     companion object {
         fun of(key: String) = entries.firstOrNull { it.key == key }

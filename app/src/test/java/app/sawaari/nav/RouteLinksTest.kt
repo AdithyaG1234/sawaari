@@ -1,0 +1,74 @@
+package app.sawaari.nav
+
+import app.sawaari.geo.GeoPoint
+import app.sawaari.share.RouteLinks
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class RouteLinksTest {
+    private val blr = GeoPoint(12.97160, 77.59460)
+    private val mys = GeoPoint(12.29580, 76.63940)
+    private val mdk = GeoPoint(12.42440, 75.73820)
+
+    @Test fun sawaariLinkRoundTrip() {
+        val plan = RidePlan(start = blr, stops = listOf(mys), end = mdk)
+        val link = RouteLinks.sawaariLink(plan) { if (it == mys) "Mysuru | Palace" else null }!!
+        assertTrue(link.startsWith(RouteLinks.SHARE_BASE))
+        val r = RouteLinks.parse(link)!!
+        assertEquals(listOf(blr, mys, mdk), r.points.map { it.point })
+        assertEquals("Mysuru   Palace", r.points[1].name)
+        // The custom scheme the web page hands to the app carries the same query.
+        val viaScheme = RouteLinks.parse("sawaari://route" + link.substringAfter("/r/"))!!
+        assertEquals(3, viaScheme.points.size)
+    }
+
+    @Test fun sawaariLinkWithoutStartStartsFromMe() {
+        val r = RouteLinks.parse(RouteLinks.sawaariLink(RidePlan(end = mdk)) { null }!!)!!
+        assertNull(r.points.first().point)
+        assertEquals(mdk, r.points.last().point)
+    }
+
+    @Test fun googleApiLink() {
+        val r = RouteLinks.parse(RouteLinks.googleLink(RidePlan(start = blr, stops = listOf(mys), end = mdk))!!)!!
+        assertEquals(listOf(blr, mys, mdk), r.points.map { it.point })
+        val named = RouteLinks.parse("https://www.google.com/maps/dir/?api=1&destination=Madikeri+Fort&travelmode=driving")!!
+        assertNull(named.points.first().point)
+        assertEquals("Madikeri Fort", named.points.last().name)
+    }
+
+    @Test fun googleDirPathWithNamesAndCoordinates() {
+        val url = "https://www.google.com/maps/dir/Bengaluru,+Karnataka/12.2958,76.6394/Madikeri,+Karnataka/" +
+            "@12.6,76.4,9z/data=!3m1!4b1!4m14!4m13!1m5!1m1!1s0x3bae1670c9b44e6d:0xf8dfc3e8517e4fe0!2m2!1d77.5945627!2d12.9715987" +
+            "!1m0!1m5!1m1!1s0x3ba500e0e7d7e5c5:0x6d0b3b0a5d7f7e4e!2m2!1d75.7382!2d12.4244!3e0"
+        val r = RouteLinks.parse(url)!!
+        assertEquals(3, r.points.size)
+        assertEquals("Bengaluru", r.points[0].name)
+        assertEquals(12.9715987, r.points[0].point!!.lat, 1e-6)
+        assertEquals(GeoPoint(12.2958, 76.6394), r.points[1].point)
+        assertEquals(75.7382, r.points[2].point!!.lon, 1e-6)
+    }
+
+    @Test fun googleDirFromMyLocation() {
+        val r = RouteLinks.parse("https://www.google.com/maps/dir//12.4244,75.7382/@12.4,75.7,12z")!!
+        assertNull(r.points[0].point)
+        assertEquals(GeoPoint(12.4244, 75.7382), r.points[1].point)
+    }
+
+    @Test fun googlePlaceAndQuery() {
+        val place = RouteLinks.parse("https://www.google.com/maps/place/Abbey+Falls/@12.45,75.71,15z/data=!3m1!4b1!4m6!3m5!1s0x0:0x0!8m2!3d12.4569!4d75.7189")!!
+        assertEquals("Abbey Falls", place.points.last().name)
+        assertEquals(12.4569, place.points.last().point!!.lat, 1e-6)
+        val q = RouteLinks.parse("https://maps.google.com/?q=12.42440,75.73820")!!
+        assertEquals(mdk, q.points.last().point)
+    }
+
+    @Test fun findsLinksInSharedText() {
+        assertEquals("https://maps.app.goo.gl/AbC123", RouteLinks.findUrl("Check this route https://maps.app.goo.gl/AbC123."))
+        assertTrue(RouteLinks.isShortGoogleLink("https://maps.app.goo.gl/AbC123"))
+        assertNull(RouteLinks.parse("https://example.com/hello"))
+        assertNotNull(RouteLinks.latLon("12.97, +77.59"))
+    }
+}
