@@ -2,6 +2,7 @@ package app.sawaari.ride
 
 import app.sawaari.geo.GeoPoint
 import app.sawaari.geo.distanceMeters
+import app.sawaari.geo.distanceToPolyline
 import app.sawaari.group.Rider
 import app.sawaari.group.Role
 import app.sawaari.nav.formatDistance
@@ -12,22 +13,41 @@ data class RideAlert(val key: String, val title: String, val text: String, val u
 /**
  * Watches the group and raises alerts. Everyone hears about:
  *  - a break: a rider tapped "Taking a break"
- *  - stopped: a rider who was moving hasn't moved for [stoppedMs] (and didn't say it's a break)
+ *  - stopped: a rider who was moving hasn't moved for [stoppedMs] (and didn't say it's a break);
+ *    with a ride plan, stops at planned places are expected and others are called "unplanned"
+ *  - slow traffic: a rider crawling at 5-15 km/h for [slowMs]
+ *  - a missed turn: a rider's navigation rerouted
+ *  - off the planned route: a rider more than [offRouteMeters] from the group's route (needs [route])
  *  - trouble with the leader or sweep: no signal for [silentMs]
- * The leader and sweep also hear about no signal from any rider, and the leader about riders more
- * than [behindMeters] behind. Each alert fires once and re-arms when the condition clears.
- * Pure Kotlin for unit tests.
+ * The leader and sweep also hear about no signal from any rider, the leader about riders more
+ * than [behindMeters] behind, and a rider about being that far behind the leader themselves.
+ * Each alert fires once and re-arms when the condition clears. Pure Kotlin for unit tests.
  */
 class GroupWatcher(
     private val behindMeters: Double = 2_000.0,
     private val stoppedMs: Long = 5 * 60_000L,
     private val silentMs: Long = 5 * 60_000L,
     private val breakNewMs: Long = 30 * 60_000L,
+    private val slowMs: Long = 4 * 60_000L,
+    private val offRouteMeters: Double = 500.0,
+    private val plannedStopMeters: Double = 300.0,
 ) {
     private val lastMovingAt = mutableMapOf<String, Long>()
+    private val slowSince = mutableMapOf<String, Long>()
     private val active = mutableSetOf<String>()
 
-    fun check(riders: List<Rider>, myUid: String?, me: GeoPoint?, now: Long): List<RideAlert> {
+    /**
+     * [planned] are the places the group expects to stop (start, stops, destination, meeting point).
+     * [route] is the group's planned route line, when this phone is navigating it.
+     */
+    fun check(
+        riders: List<Rider>,
+        myUid: String?,
+        me: GeoPoint?,
+        now: Long,
+        planned: List<GeoPoint> = emptyList(),
+        route: List<GeoPoint>? = null,
+    ): List<RideAlert> {
         val myRole = riders.firstOrNull { it.uid == myUid }?.role ?: return emptyList()
         val iLead = myRole == Role.LEADER || myRole == Role.SWEEP
         val out = mutableListOf<RideAlert>()
@@ -51,9 +71,19 @@ class GroupWatcher(
                 } else stillTrue += "break:${r.uid}:${r.breakAt}"
             }
 
+            // Missed a turn: their navigation rerouted in the last few minutes.
+            if (r.rerouteAt > 0 && now - r.rerouteAt < RECENT_MS) {
+                raise("reroute:${r.uid}:${r.rerouteAt}") {
+                    RideAlert("reroute:${r.uid}:${r.rerouteAt}", "$who missed a turn", "Their navigation is rerouting.$away")
+                }
+            } else if (r.rerouteAt > 0) stillTrue += "reroute:${r.uid}:${r.rerouteAt}"
+
             if (r.lat == null || r.lon == null || r.updatedAt == 0L) continue
             val age = now - r.updatedAt
+            val pos = GeoPoint(r.lat, r.lon)
             if (r.speedKmh >= MOVING_KMH) lastMovingAt[r.uid] = r.updatedAt
+            if (r.speedKmh >= MOVING_KMH && r.speedKmh < CRAWL_MAX_KMH) slowSince.getOrPut(r.uid) { r.updatedAt }
+            else slowSince.remove(r.uid)
 
             // Lost signal: the leader and sweep hear about anyone; everyone hears about the leader and sweep.
             if (age > silentMs) {
@@ -73,9 +103,30 @@ class GroupWatcher(
 
             // Stopped without saying it's a break (only once we've seen them moving).
             val movedAt = lastMovingAt[r.uid]
-            if (r.breakAt == 0L && movedAt != null && r.speedKmh < MOVING_KMH && r.updatedAt - movedAt >= stoppedMs) {
+            val atPlannedPlace = planned.any { distanceMeters(it, pos) < plannedStopMeters }
+            if (r.breakAt == 0L && !atPlannedPlace && movedAt != null && r.speedKmh < MOVING_KMH && r.updatedAt - movedAt >= stoppedMs) {
                 raise("stopped:${r.uid}") {
-                    RideAlert("stopped:${r.uid}", "$who has stopped", "Not moving for ${(r.updatedAt - movedAt) / 60_000} min.$away")
+                    RideAlert(
+                        "stopped:${r.uid}",
+                        if (planned.isEmpty()) "$who has stopped" else "$who stopped at an unplanned place",
+                        "Not moving for ${(r.updatedAt - movedAt) / 60_000} min.$away",
+                    )
+                }
+            }
+
+            // Slow traffic: crawling for a while (not stopped, not riding normally).
+            val slowFrom = slowSince[r.uid]
+            if (r.breakAt == 0L && slowFrom != null && r.updatedAt - slowFrom >= slowMs) {
+                raise("slow:${r.uid}") {
+                    RideAlert("slow:${r.uid}", "$who is in slow traffic", "Crawling at ${r.speedKmh.toInt()} km/h for ${(r.updatedAt - slowFrom) / 60_000} min.$away")
+                }
+            }
+
+            // Off the group's planned route (wrong turn or a different road).
+            val off = route?.let { distanceToPolyline(pos, it) }
+            if (off != null && off > offRouteMeters) {
+                raise("offroute:${r.uid}") {
+                    RideAlert("offroute:${r.uid}", "$who is off the planned route", "${formatDistance(off)} from the route. Wrong turn?")
                 }
             }
 
@@ -85,10 +136,23 @@ class GroupWatcher(
                 if (d > behindMeters) raise("behind:${r.uid}") { RideAlert("behind:${r.uid}", "${r.name} fell behind", "${formatDistance(d)} from you.") }
             }
         }
+        // I fell behind the leader.
+        val leader = riders.firstOrNull { it.role == Role.LEADER }
+        if (myRole != Role.LEADER && me != null && leader?.lat != null && leader.lon != null && leader.updatedAt > 0 && now - leader.updatedAt <= silentMs) {
+            val d = distanceMeters(me, GeoPoint(leader.lat, leader.lon))
+            if (d > behindMeters) raise("self-behind") {
+                RideAlert("self-behind", "You're ${formatDistance(d)} from the leader", "The group may be ahead of you. Check the map.")
+            }
+        }
+
         active.retainAll(stillTrue)
         active += out.map { it.key }
         return out
     }
 
-    companion object { const val MOVING_KMH = 8f }
+    companion object {
+        const val MOVING_KMH = 5f
+        const val CRAWL_MAX_KMH = 15f
+        const val RECENT_MS = 3 * 60_000L
+    }
 }

@@ -65,7 +65,8 @@ class RideService : Service() {
             scope.launch {
                 groups.group.collect { g ->
                     if (g == null) { stopSelf(); return@collect }
-                    watcher.check(g.riders, groups.myUid, me, System.currentTimeMillis()).forEach { a ->
+                    val planned = listOfNotNull(g.plan?.start, g.plan?.end, g.meet?.point) + g.plan?.stops.orEmpty()
+                    watcher.check(g.riders, groups.myUid, me, System.currentTimeMillis(), planned, app.groupRoute.value).forEach { a ->
                         notify(a.key.hashCode(), a.title, a.text, urgent = a.urgent)
                     }
                 }
