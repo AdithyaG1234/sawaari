@@ -46,7 +46,7 @@ class NavigationController(
 
     val myPosition: GeoPoint? get() = location?.let { GeoPoint(it.latitude, it.longitude) }
 
-    fun setDestination(p: GeoPoint) {
+    fun chooseDestination(p: GeoPoint) {
         if (navigating) return
         destination = p
         route = null

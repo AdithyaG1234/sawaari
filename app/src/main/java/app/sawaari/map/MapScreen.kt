@@ -177,7 +177,7 @@ fun MapScreen(
                             .zoom(MapConfig.DEFAULT_ZOOM)
                             .build()
                         m.addOnMapLongClickListener { ll ->
-                            nav.setDestination(GeoPoint(ll.latitude, ll.longitude))
+                            nav.chooseDestination(GeoPoint(ll.latitude, ll.longitude))
                             true
                         }
                         map = m
