@@ -9,15 +9,16 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
-      - uses: android-actions/setup-android@v3
-      - uses: gradle/actions/setup-gradle@v4
-      - run: chmod +x gradlew && ./gradlew assembleDebug
-      - uses: actions/upload-artifact@v4
+      # The GitHub ubuntu runner already ships the Android SDK (ANDROID_HOME),
+      # so no separate setup-android step is needed.
+      - uses: gradle/actions/setup-gradle@v5
+      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v5
         with:
           name: sawaari-debug-apk
           path: app/build/outputs/apk/debug/*.apk
