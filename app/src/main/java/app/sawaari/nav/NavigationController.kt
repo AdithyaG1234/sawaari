@@ -138,6 +138,9 @@ class NavigationController(
         }
     }
 
+    /** Speak something outside of turn instructions, e.g. an SOS from the group. */
+    fun announce(text: String) = speak(text)
+
     private fun speak(text: String) {
         if (!ttsReady) return
         if (!ttsConfigured) { runCatching { tts.language = Locale("en", "IN") }; ttsConfigured = true }

@@ -18,6 +18,12 @@
             ".write": "auth != null && $uid === auth.uid && (!newData.exists() || root.child('groups').child($code).child('members').child(auth.uid).exists())",
             ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber())"
           }
+        },
+        "alerts": {
+          "$id": {
+            ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+            ".validate": "newData.hasChildren(['uid', 'name', 'ts']) && newData.child('ts').isNumber()"
+          }
         }
       }
     }

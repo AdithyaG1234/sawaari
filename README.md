@@ -39,6 +39,6 @@ Open the folder in Android Studio (Ladybug or newer) and press Run, or:
 1. Offline maps and region downloads ✔ (first cut)
 2. Offline turn-by-turn navigation (GraphHopper) ✔
 3. Group rides: invite code, live locations, leader/sweep ✔ (needs Firebase setup); fell-behind alerts next
-4. SOS with SMS to emergency contacts
+4. SOS with SMS to emergency contacts ✔ (also alerts the ride group)
 5. Trip planner with multi-day itinerary
 6. Ride recording and stats (stored as structured data, ready for the AI Instagram infographic later)
