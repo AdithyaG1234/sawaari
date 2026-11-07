@@ -151,6 +151,16 @@ fun MapScreen(
     }
     var tappedRider by remember { mutableStateOf<String?>(null) }
 
+    var meetAt by remember { mutableStateOf<GeoPoint?>(null) }
+
+    val mapView = rememberMapViewWithLifecycle()
+    var map by remember { mutableStateOf<MapLibreMap?>(null) }
+    var style by remember { mutableStateOf<Style?>(null) }
+    var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
+    var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
+    val snackbar = remember { SnackbarHostState() }
+
     // Places along the route (food, fuel, mechanics, tyres, hospitals).
     val visiblePlacesRef = remember { object { var value: List<PlaceOnRoute> = emptyList() } }
     var placeCategory by remember { mutableStateOf<PlaceCategory?>(null) }
@@ -183,15 +193,6 @@ fun MapScreen(
         }
         style?.getSourceAs<GeoJsonSource>(SRC_POIS)?.setGeoJson(FeatureCollection.fromFeatures(features))
     }
-    var meetAt by remember { mutableStateOf<GeoPoint?>(null) }
-
-    val mapView = rememberMapViewWithLifecycle()
-    var map by remember { mutableStateOf<MapLibreMap?>(null) }
-    var style by remember { mutableStateOf<Style?>(null) }
-    var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
-    var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
-    var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
-    val snackbar = remember { SnackbarHostState() }
 
     // Location permission and GPS updates.
     fun hasPermission() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
