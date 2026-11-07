@@ -116,7 +116,20 @@ fun MapScreen(
         if (!permitted) permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
     }
     LaunchedEffect(permitted) {
-        if (permitted) locationUpdates(context).collect { nav.onLocation(it) }
+        if (!permitted) return@LaunchedEffect
+        if (!isLocationEnabled(context)) nav.message = "Location is turned off. Turn it on in quick settings to see where you are."
+        locationUpdates(context).collect { nav.onLocation(it) }
+    }
+
+    // Jump to the rider the first time we get a fix.
+    var centeredOnce by remember { mutableStateOf(false) }
+    LaunchedEffect(map, nav.location) {
+        val m = map ?: return@LaunchedEffect
+        val p = nav.myPosition ?: return@LaunchedEffect
+        if (!centeredOnce && !nav.navigating) {
+            centeredOnce = true
+            m.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.lat, p.lon), 15.0), 1200)
+        }
     }
 
     // Keep the screen on while navigating.
@@ -195,7 +208,9 @@ fun MapScreen(
             SmallFloatingActionButton(
                 onClick = {
                     val p = nav.myPosition
-                    if (p == null) nav.message = if (permitted) "Waiting for your GPS location…" else "Allow location access to see where you are."
+                    if (!permitted) permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    else if (!isLocationEnabled(context)) nav.message = "Location is turned off. Turn it on in quick settings."
+                    else if (p == null) nav.message = "Finding your location… this can take a minute outdoors."
                     else map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.lat, p.lon), 14.0), 800)
                 },
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
@@ -305,6 +320,11 @@ private fun NavigationBanner(nav: NavigationController, modifier: Modifier = Mod
             }
         }
     }
+}
+
+private fun isLocationEnabled(context: android.content.Context): Boolean {
+    val lm = context.getSystemService(android.content.Context.LOCATION_SERVICE) as android.location.LocationManager
+    return androidx.core.location.LocationManagerCompat.isLocationEnabled(lm)
 }
 
 private fun pointOrEmpty(p: GeoPoint?): FeatureCollection =
