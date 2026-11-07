@@ -148,10 +148,14 @@ class NavigationController(
         prompts.check(p.nextStepIndex, p.distanceToNextStep, step.text)?.let { speak(it) }
     }
 
+    /** Called when navigation reroutes (the rider left the route), so the group can be told. */
+    var onReroute: (() -> Unit)? = null
+
     private fun reroute() {
         val to = plan.end ?: return
         val from = myPosition ?: return
         speak("Recalculating.")
+        onReroute?.invoke()
         // Go on to the stops not yet reached, then the destination.
         val ahead = plan.stops.drop(stopsReached)
         rerouteJob = scope.launch {

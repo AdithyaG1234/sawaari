@@ -46,3 +46,14 @@ fun projectOntoSegment(p: GeoPoint, a: GeoPoint, b: GeoPoint): Projection {
     val proj = GeoPoint(a.lat + t * (b.lat - a.lat), a.lon + t * (b.lon - a.lon))
     return Projection(proj, t, distanceMeters(p, proj))
 }
+
+/** Shortest distance in metres from [p] to the line through [line], or null if it has fewer than 2 points. */
+fun distanceToPolyline(p: GeoPoint, line: List<GeoPoint>): Double? {
+    if (line.size < 2) return null
+    var best = Double.MAX_VALUE
+    for (i in 0 until line.size - 1) {
+        val d = projectOntoSegment(p, line[i], line[i + 1]).distance
+        if (d < best) best = d
+    }
+    return best
+}

@@ -1,7 +1,9 @@
 package app.sawaari
 
 import android.app.Application
+import app.sawaari.geo.GeoPoint
 import app.sawaari.group.GroupRepository
+import kotlinx.coroutines.flow.MutableStateFlow
 import app.sawaari.routing.RoutingRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -14,6 +16,9 @@ class SawaariApp : Application() {
 
     val routing: RoutingRepository by lazy { RoutingRepository(this, appScope) }
     val groups: GroupRepository by lazy { GroupRepository(this, appScope) }
+
+    /** The group's planned route line while this phone navigates it, so alerts can spot riders off the route. */
+    val groupRoute = MutableStateFlow<List<GeoPoint>?>(null)
 
     override fun onCreate() {
         super.onCreate()

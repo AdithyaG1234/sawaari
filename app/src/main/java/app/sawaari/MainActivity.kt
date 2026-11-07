@@ -69,6 +69,8 @@ class MainActivity : ComponentActivity() {
                 var sosCountdown by remember { mutableStateOf<Int?>(null) }
                 var sosResult by remember { mutableStateOf<String?>(null) }
                 var tab by rememberSaveable { mutableIntStateOf(0) }
+                var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
+                val app = application as SawaariApp
                 LaunchedEffect(Unit) { repo.refresh() }
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
@@ -123,6 +125,13 @@ class MainActivity : ComponentActivity() {
                             groupPlanBy = group?.planBy.orEmpty(),
                             iAmLeader = group != null && group?.leaderUid == groups.myUid,
                             onSharePlan = { groups.sharePlan(it) },
+                            meet = group?.meet,
+                            onSetMeetingPoint = if (group != null && group?.leaderUid == groups.myUid)
+                                ({ p: GeoPoint, time: Long, note: String -> groups.setMeetingPoint(p, time, note) }) else null,
+                            onReroute = groups::reportReroute,
+                            onGroupRoute = { app.groupRoute.value = it },
+                            rideTo = rideTo,
+                            onRideToHandled = { rideTo = null },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
@@ -140,7 +149,11 @@ class MainActivity : ComponentActivity() {
                             SosScreen(sosSettings, Modifier.fillMaxSize())
                         }
                         if (tab == 2) Surface(Modifier.fillMaxSize()) {
-                            GroupScreen(groups, myPosition, Modifier.fillMaxSize())
+                            GroupScreen(
+                                groups, myPosition, Modifier.fillMaxSize(),
+                                sosContacts = sosContacts,
+                                onRideTo = { rideTo = it; tab = 0 },
+                            )
                         }
                         if (tab == 1) Surface(Modifier.fillMaxSize()) {
                             DownloadsScreen(

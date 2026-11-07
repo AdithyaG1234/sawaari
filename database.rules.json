@@ -16,6 +16,18 @@
             },
             "sosAt": {
               ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "rerouteAt": {
+              ".validate": "newData.isNumber() && newData.val() <= now + 60000"
+            },
+            "phone": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "icePhone": {
+              ".validate": "newData.isString() && newData.val().length <= 20"
+            },
+            "iceName": {
+              ".validate": "newData.isString() && newData.val().length <= 40"
             }
           }
         },
@@ -34,6 +46,10 @@
             ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid && root.child('groups').child($code).child('members').child(auth.uid).exists()",
             ".validate": "newData.hasChildren(['uid', 'name', 'ts']) && newData.child('ts').isNumber()"
           }
+        },
+        "meet": {
+          ".write": "auth != null && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid",
+          ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber() && (!newData.child('note').exists() || (newData.child('note').isString() && newData.child('note').val().length <= 120)))"
         }
       }
     }

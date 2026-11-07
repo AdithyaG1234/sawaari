@@ -36,7 +36,16 @@ data class Rider(
     val breakAt: Long = 0L,
     /** When they last sent an SOS, or 0. */
     val sosAt: Long = 0L,
+    /** When their navigation last had to reroute (missed a turn), or 0. */
+    val rerouteAt: Long = 0L,
+    /** Their own number and an emergency contact, only if they chose to share them with the group. */
+    val phone: String = "",
+    val iceName: String = "",
+    val icePhone: String = "",
 )
+
+/** Where and when the group meets before the ride. Set by the leader. */
+data class MeetingPoint(val point: GeoPoint, val time: Long, val note: String, val by: String)
 
 data class SosAlert(
     val id: String,
@@ -56,6 +65,7 @@ data class RideGroup(
     val plan: RidePlan? = null,
     val planBy: String = "",
     val planTs: Long = 0L,
+    val meet: MeetingPoint? = null,
 ) {
     val leader: Rider? get() = riders.firstOrNull { it.uid == leaderUid }
 
@@ -83,6 +93,7 @@ data class RideGroup(
  *   groups/{code}/members/{uid}     {name, role, joinedAt, breakAt?, sosAt?}
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
  *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
+ *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
  *   groups/{code}/alerts/{id}       {uid, name, lat?, lon?, ts}
  */
 class GroupRepository(context: Context, private val scope: CoroutineScope) {
@@ -225,6 +236,43 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         db.getReference("groups/${g.code}/plan").setValue(data).await()
     }
 
+    /** Leader only: share where and when to meet. [time] is 0 if no time is set. */
+    fun setMeetingPoint(point: GeoPoint, time: Long, note: String) = action {
+        val g = _group.value ?: return@action
+        db.getReference("groups/${g.code}/meet").setValue(
+            mapOf(
+                "lat" to point.lat, "lon" to point.lon, "time" to time, "note" to note.trim().take(120),
+                "by" to _myName.value.ifBlank { "Leader" }, "ts" to System.currentTimeMillis(),
+            )
+        ).await()
+    }
+
+    fun clearMeetingPoint() = action {
+        val g = _group.value ?: return@action
+        db.getReference("groups/${g.code}/meet").removeValue().await()
+    }
+
+    /** Share (or stop sharing, with blanks) my phone number and one emergency contact with the group. */
+    fun shareContactDetails(phone: String, iceName: String, icePhone: String) = action {
+        val g = _group.value ?: return@action
+        val uid = myUid ?: return@action
+        val base = "members/$uid"
+        val updates = mutableMapOf<String, Any?>(
+            "$base/phone" to phone.trim().take(20).ifBlank { null },
+            "$base/iceName" to iceName.trim().take(40).ifBlank { null },
+            "$base/icePhone" to icePhone.trim().take(20).ifBlank { null },
+        )
+        db.getReference("groups/${g.code}").updateChildren(updates).await()
+        prefs.edit().putBoolean(KEY_SHARE_CONTACTS, phone.isNotBlank() || icePhone.isNotBlank()).apply()
+    }
+
+    /** My navigation had to reroute: lets the group know I may have taken a wrong turn. */
+    fun reportReroute() {
+        val code = _group.value?.code ?: return
+        val uid = myUid ?: return
+        db.getReference("groups/$code/members/$uid/rerouteAt").setValue(System.currentTimeMillis())
+    }
+
     fun clearSharedPlan() = action {
         val g = _group.value ?: return@action
         db.getReference("groups/${g.code}/plan").removeValue().await()
@@ -348,6 +396,10 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
                 updatedAt = loc.child("ts").getValue(Long::class.java) ?: 0L,
                 breakAt = m.child("breakAt").getValue(Long::class.java) ?: 0L,
                 sosAt = m.child("sosAt").getValue(Long::class.java) ?: 0L,
+                rerouteAt = m.child("rerouteAt").getValue(Long::class.java) ?: 0L,
+                phone = m.child("phone").getValue(String::class.java).orEmpty(),
+                iceName = m.child("iceName").getValue(String::class.java).orEmpty(),
+                icePhone = m.child("icePhone").getValue(String::class.java).orEmpty(),
             )
         }.sortedWith(compareBy({ roleOrder(it.role) }, { it.name.lowercase() }))
         return RideGroup(
@@ -358,6 +410,18 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
             plan = parsePlan(s.child("plan")),
             planBy = s.child("plan/by").getValue(String::class.java).orEmpty(),
             planTs = s.child("plan/ts").getValue(Long::class.java) ?: 0L,
+            meet = parseMeet(s.child("meet")),
+        )
+    }
+
+    private fun parseMeet(m: DataSnapshot): MeetingPoint? {
+        val lat = m.child("lat").getValue(Double::class.java) ?: return null
+        val lon = m.child("lon").getValue(Double::class.java) ?: return null
+        return MeetingPoint(
+            GeoPoint(lat, lon),
+            m.child("time").getValue(Long::class.java) ?: 0L,
+            m.child("note").getValue(String::class.java).orEmpty(),
+            m.child("by").getValue(String::class.java).orEmpty(),
         )
     }
 
@@ -393,6 +457,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         const val ALERT_WINDOW_MS = 3 * 60 * 60_000L
         private const val KEY_CODE = "code"
         private const val KEY_NAME = "name"
+        private const val KEY_SHARE_CONTACTS = "share_contacts"
         // No 0/O or 1/I/L, so codes are easy to read out loud.
         private const val ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"
         fun newCode(): String = (1..CODE_LENGTH).map { ALPHABET.random() }.joinToString("")
