@@ -32,6 +32,15 @@ data class Rider(
     val updatedAt: Long,
 )
 
+data class SosAlert(
+    val id: String,
+    val uid: String,
+    val name: String,
+    val lat: Double?,
+    val lon: Double?,
+    val ts: Long,
+)
+
 data class RideGroup(
     val code: String,
     val name: String,
@@ -72,6 +81,11 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
 
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    private val dismissed = mutableSetOf<String>()
+    private val _alerts = MutableStateFlow<List<SosAlert>>(emptyList())
+    /** SOS alerts from other riders in the last few hours that this rider hasn't dismissed. */
+    val alerts: StateFlow<List<SosAlert>> = _alerts.asStateFlow()
 
     private val _myName = MutableStateFlow(prefs.getString(KEY_NAME, "").orEmpty())
     val myName: StateFlow<String> = _myName.asStateFlow()
@@ -122,6 +136,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         val code = _group.value?.code ?: prefs.getString(KEY_CODE, null) ?: return@action
         stopListening()
         _group.value = null
+        _alerts.value = emptyList()
         prefs.edit().remove(KEY_CODE).apply()
         myUid?.let { uid ->
             db.getReference("groups/$code/locations/$uid").removeValue()
@@ -136,6 +151,21 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         g.riders.filter { it.role == Role.SWEEP && it.uid != uid }.forEach { updates["members/${it.uid}/role"] = Role.RIDER }
         updates["members/$uid/role"] = Role.SWEEP
         db.getReference("groups/${g.code}").updateChildren(updates).await()
+    }
+
+    /** Tell everyone in the group that I need help. Returns false if I'm not in a group. */
+    fun sendSos(location: Location?): Boolean {
+        val code = _group.value?.code ?: return false
+        val uid = myUid ?: return false
+        val data = mutableMapOf<String, Any>("uid" to uid, "name" to _myName.value.ifBlank { "Rider" }, "ts" to System.currentTimeMillis())
+        location?.let { data["lat"] = it.latitude; data["lon"] = it.longitude }
+        db.getReference("groups/$code/alerts").push().setValue(data)
+        return true
+    }
+
+    fun dismissAlert(id: String) {
+        dismissed += id
+        _alerts.value = _alerts.value.filterNot { it.id == id }
     }
 
     /** Share my position with the group, at most every [PUBLISH_INTERVAL_MS]. */
@@ -196,11 +226,13 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
                 if (!snapshot.child("meta").exists() || myUid?.let { !snapshot.child("members").hasChild(it) } == true) {
                     // Group deleted or we were removed.
                     _group.value = null
+                    _alerts.value = emptyList()
                     prefs.edit().remove(KEY_CODE).apply()
                     stopListening()
                     return
                 }
                 _group.value = parse(code, snapshot)
+                _alerts.value = parseAlerts(snapshot)
             }
             override fun onCancelled(error: DatabaseError) {
                 _error.value = "Lost access to the group (${error.message})."
@@ -241,11 +273,24 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         )
     }
 
+    private fun parseAlerts(s: DataSnapshot): List<SosAlert> {
+        val cutoff = System.currentTimeMillis() - ALERT_WINDOW_MS
+        return s.child("alerts").children.mapNotNull { a ->
+            val id = a.key ?: return@mapNotNull null
+            val uid = a.child("uid").getValue(String::class.java) ?: return@mapNotNull null
+            val ts = a.child("ts").getValue(Long::class.java) ?: 0L
+            if (uid == myUid || ts < cutoff || id in dismissed) return@mapNotNull null
+            SosAlert(id, uid, a.child("name").getValue(String::class.java) ?: "A rider",
+                a.child("lat").getValue(Double::class.java), a.child("lon").getValue(Double::class.java), ts)
+        }.sortedByDescending { it.ts }
+    }
+
     private fun roleOrder(role: String) = when (role) { Role.LEADER -> 0; Role.SWEEP -> 2; else -> 1 }
 
     companion object {
         const val CODE_LENGTH = 6
         const val PUBLISH_INTERVAL_MS = 10_000L
+        const val ALERT_WINDOW_MS = 3 * 60 * 60_000L
         private const val KEY_CODE = "code"
         private const val KEY_NAME = "name"
         // No 0/O or 1/I/L, so codes are easy to read out loud.

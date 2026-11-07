@@ -71,6 +71,9 @@ import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import app.sawaari.group.Rider
+import app.sawaari.group.SosAlert
+import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.ui.graphics.Color
 import app.sawaari.group.Role
 import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
@@ -102,6 +105,9 @@ fun MapScreen(
     myUid: String? = null,
     onLocation: (android.location.Location) -> Unit = {},
     onPositionChanged: (GeoPoint?) -> Unit = {},
+    sosAlerts: List<SosAlert> = emptyList(),
+    onDismissSos: (String) -> Unit = {},
+    onSosPressed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -182,6 +188,13 @@ fun MapScreen(
         }
     }
     LaunchedEffect(nav.location) { onPositionChanged(nav.myPosition) }
+
+    // A new SOS from the group: vibrate hard and say it out loud.
+    LaunchedEffect(sosAlerts.firstOrNull()?.id) {
+        val a = sosAlerts.firstOrNull() ?: return@LaunchedEffect
+        vibrateAlarm(context)
+        nav.announce("Emergency. ${a.name} has sent an S O S.")
+    }
     LaunchedEffect(style, groupRiders, myUid) {
         val s = style ?: return@LaunchedEffect
         val now = System.currentTimeMillis()
@@ -223,8 +236,22 @@ fun MapScreen(
             modifier = Modifier.fillMaxSize(),
         )
 
-        if (nav.navigating) {
-            NavigationBanner(nav, Modifier.align(Alignment.TopCenter).padding(12.dp))
+        Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (nav.navigating) NavigationBanner(nav)
+            sosAlerts.take(2).forEach { a ->
+                SosBanner(
+                    alert = a,
+                    myPosition = nav.myPosition,
+                    onNavigate = {
+                        if (a.lat != null && a.lon != null) {
+                            nav.stop()
+                            nav.chooseDestination(GeoPoint(a.lat, a.lon))
+                            nav.planRoute()
+                        }
+                    },
+                    onDismiss = { onDismissSos(a.id) },
+                )
+            }
         }
 
         if (!nav.navigating) {
@@ -239,6 +266,13 @@ fun MapScreen(
                 modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
             ) { Icon(Icons.Default.MyLocation, contentDescription = "My location") }
         }
+
+        LargeFloatingActionButton(
+            onClick = onSosPressed,
+            containerColor = Color(0xFFD32F2F),
+            contentColor = Color.White,
+            modifier = Modifier.align(Alignment.CenterEnd).padding(end = 16.dp),
+        ) { Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) }
 
         Column(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
@@ -311,6 +345,41 @@ private fun RouteCard(nav: NavigationController) {
                 OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
             }
         }
+    }
+}
+
+@Composable
+private fun SosBanner(alert: SosAlert, myPosition: GeoPoint?, onNavigate: () -> Unit, onDismiss: () -> Unit) {
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFFD32F2F), contentColor = Color.White),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("SOS from ${alert.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            val ageMin = ((System.currentTimeMillis() - alert.ts) / 60_000).coerceAtLeast(0)
+            val where = if (alert.lat != null && alert.lon != null && myPosition != null)
+                "${formatDistance(app.sawaari.geo.distanceMeters(myPosition, GeoPoint(alert.lat, alert.lon)))} away · " else ""
+            Text("$where${if (ageMin < 1) "just now" else "$ageMin min ago"}")
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (alert.lat != null && alert.lon != null) {
+                    Button(
+                        onClick = onNavigate,
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = Color.White, contentColor = Color(0xFFD32F2F)),
+                    ) { Text("Go to rider") }
+                }
+                OutlinedButton(onClick = onDismiss) { Text("Dismiss", color = Color.White) }
+            }
+        }
+    }
+}
+
+private fun vibrateAlarm(context: android.content.Context) {
+    runCatching {
+        val pattern = longArrayOf(0, 600, 200, 600, 200, 600)
+        val vibrator = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S)
+            (context.getSystemService(android.os.VibratorManager::class.java)).defaultVibrator
+        else @Suppress("DEPRECATION") context.getSystemService(android.os.Vibrator::class.java)
+        vibrator.vibrate(android.os.VibrationEffect.createWaveform(pattern, -1))
     }
 }
 
