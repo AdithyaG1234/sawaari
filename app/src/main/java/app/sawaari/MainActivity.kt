@@ -1,6 +1,11 @@
 package app.sawaari
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import app.sawaari.ride.RideService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -64,6 +69,15 @@ class MainActivity : ComponentActivity() {
                 var sosResult by remember { mutableStateOf<String?>(null) }
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 LaunchedEffect(Unit) { repo.refresh() }
+
+                // While in a ride group, keep sharing location with the screen off (ongoing notification).
+                val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                LaunchedEffect(group != null, myPosition != null) {
+                    if (group != null) {
+                        if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        RideService.start(applicationContext)
+                    } else RideService.stop(applicationContext)
+                }
 
                 Scaffold(
                     bottomBar = {
