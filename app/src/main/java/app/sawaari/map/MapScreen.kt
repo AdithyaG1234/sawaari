@@ -70,7 +70,11 @@ import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.maps.MapLibreMap
 import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
+import app.sawaari.group.Rider
+import app.sawaari.group.Role
+import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.CircleLayer
+import org.maplibre.android.style.layers.SymbolLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -83,6 +87,7 @@ import org.maplibre.geojson.Point
 private const val SRC_ROUTE = "sawaari-route"
 private const val SRC_ME = "sawaari-me"
 private const val SRC_DEST = "sawaari-dest"
+private const val SRC_RIDERS = "sawaari-riders"
 
 /**
  * Full-screen map. Works offline for downloaded areas.
@@ -93,6 +98,10 @@ fun MapScreen(
     routing: RoutingRepository,
     onDownloadArea: (name: String, bounds: LatLngBounds) -> Unit,
     modifier: Modifier = Modifier,
+    groupRiders: List<Rider> = emptyList(),
+    myUid: String? = null,
+    onLocation: (android.location.Location) -> Unit = {},
+    onPositionChanged: (GeoPoint?) -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,7 +127,7 @@ fun MapScreen(
     LaunchedEffect(permitted) {
         if (!permitted) return@LaunchedEffect
         if (!isLocationEnabled(context)) nav.message = "Location is turned off. Turn it on in quick settings to see where you are."
-        locationUpdates(context).collect { nav.onLocation(it) }
+        locationUpdates(context).collect { nav.onLocation(it); onLocation(it) }
     }
 
     // Jump to the rider the first time we get a fix.
@@ -171,6 +180,20 @@ fun MapScreen(
                 900,
             )
         }
+    }
+    LaunchedEffect(nav.location) { onPositionChanged(nav.myPosition) }
+    LaunchedEffect(style, groupRiders, myUid) {
+        val s = style ?: return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        val features = groupRiders.filter { it.uid != myUid && it.lat != null && it.lon != null && now - it.updatedAt < 6 * 60 * 60_000L }
+            .map { r ->
+                val ageMin = (now - r.updatedAt) / 60_000
+                Feature.fromGeometry(Point.fromLngLat(r.lon!!, r.lat!!)).apply {
+                    addStringProperty("label", if (ageMin >= 2) "${r.name} (${ageMin}m ago)" else r.name)
+                    addStringProperty("color", when (r.role) { Role.LEADER -> "#2E7D32"; Role.SWEEP -> "#EF6C00"; else -> "#7B1FA2" })
+                }
+            }
+        s.getSourceAs<GeoJsonSource>(SRC_RIDERS)?.setGeoJson(FeatureCollection.fromFeatures(features))
     }
     LaunchedEffect(style, nav.destination) {
         style?.getSourceAs<GeoJsonSource>(SRC_DEST)?.setGeoJson(pointOrEmpty(nav.destination))
@@ -335,6 +358,7 @@ private fun addOverlayLayers(style: Style) {
     style.addSource(GeoJsonSource(SRC_ROUTE))
     style.addSource(GeoJsonSource(SRC_DEST))
     style.addSource(GeoJsonSource(SRC_ME))
+    style.addSource(GeoJsonSource(SRC_RIDERS))
     style.addLayer(
         LineLayer("sawaari-route-casing", SRC_ROUTE).withProperties(
             PropertyFactory.lineColor("#0D47A1"),
@@ -357,6 +381,28 @@ private fun addOverlayLayers(style: Style) {
             PropertyFactory.circleColor("#E53935"),
             PropertyFactory.circleStrokeColor("#FFFFFF"),
             PropertyFactory.circleStrokeWidth(3f),
+        )
+    )
+    style.addLayer(
+        CircleLayer("sawaari-riders", SRC_RIDERS).withProperties(
+            PropertyFactory.circleRadius(8f),
+            PropertyFactory.circleColor(Expression.toColor(Expression.get("color"))),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(2.5f),
+        )
+    )
+    style.addLayer(
+        SymbolLayer("sawaari-rider-names", SRC_RIDERS).withProperties(
+            PropertyFactory.textField(Expression.get("label")),
+            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+            PropertyFactory.textSize(13f),
+            PropertyFactory.textOffset(arrayOf(0f, 1.3f)),
+            PropertyFactory.textAnchor(Property.TEXT_ANCHOR_TOP),
+            PropertyFactory.textColor("#212121"),
+            PropertyFactory.textHaloColor("#FFFFFF"),
+            PropertyFactory.textHaloWidth(1.5f),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(true),
         )
     )
     style.addLayer(

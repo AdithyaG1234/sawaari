@@ -1,0 +1,25 @@
+{
+  "rules": {
+    "groups": {
+      "$code": {
+        ".read": "auth != null && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null && (!data.exists() ? newData.child('leader').val() === auth.uid : data.child('leader').val() === auth.uid)"
+        },
+        "members": {
+          "$uid": {
+            ".write": "auth != null && root.child('groups').child($code).child('meta').exists() && ($uid === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid)",
+            ".validate": "!newData.exists() || (newData.hasChildren(['name', 'role']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('role').val().matches(/^(leader|sweep|rider)$/))"
+          }
+        },
+        "locations": {
+          "$uid": {
+            ".write": "auth != null && $uid === auth.uid && (!newData.exists() || root.child('groups').child($code).child('members').child(auth.uid).exists())",
+            ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber())"
+          }
+        }
+      }
+    }
+  }
+}
