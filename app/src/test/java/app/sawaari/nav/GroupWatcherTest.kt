@@ -93,9 +93,9 @@ class GroupWatcherTest {
         val w = GroupWatcher()
         val now = 10 * 60_000L
         val route = listOf(GeoPoint(12.90, 77.59), GeoPoint(13.00, 77.59)) // north-south line
-        val onRoute = rider(12.95, 40f, now)
+        val onRoute = rider(12.965, 40f, now) // close to the leader, so no fell-behind alert
         assertTrue(w.check(listOf(leader(), onRoute), "me", me, now, route = route).isEmpty())
-        val off = Rider("r1", "Ravi", Role.RIDER, 12.95, 77.60, 40f, now + 1000) // ~1 km east
+        val off = Rider("r1", "Ravi", Role.RIDER, 12.965, 77.60, 40f, now + 1000) // ~1 km east
         assertEquals(listOf("Ravi is off the planned route"), w.check(listOf(leader(), off), "me", me, now + 1000, route = route).map { it.title })
     }
 
