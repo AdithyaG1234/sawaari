@@ -59,6 +59,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import app.sawaari.geo.GeoPoint
 import app.sawaari.location.locationUpdates
 import app.sawaari.nav.NavigationController
+import app.sawaari.nav.RidePlan
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.IconButton
 import app.sawaari.nav.formatDistance
 import app.sawaari.nav.formatDuration
 import app.sawaari.nav.iconForSign
@@ -108,6 +113,10 @@ fun MapScreen(
     sosAlerts: List<SosAlert> = emptyList(),
     onDismissSos: (String) -> Unit = {},
     onSosPressed: () -> Unit = {},
+    groupPlan: RidePlan? = null,
+    groupPlanBy: String = "",
+    iAmLeader: Boolean = false,
+    onSharePlan: ((RidePlan) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -118,6 +127,8 @@ fun MapScreen(
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
+    var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
     val snackbar = remember { SnackbarHostState() }
 
     // Location permission and GPS updates.
@@ -208,8 +219,8 @@ fun MapScreen(
             }
         s.getSourceAs<GeoJsonSource>(SRC_RIDERS)?.setGeoJson(FeatureCollection.fromFeatures(features))
     }
-    LaunchedEffect(style, nav.destination) {
-        style?.getSourceAs<GeoJsonSource>(SRC_DEST)?.setGeoJson(pointOrEmpty(nav.destination))
+    LaunchedEffect(style, nav.plan, nav.stopsReached) {
+        style?.getSourceAs<GeoJsonSource>(SRC_DEST)?.setGeoJson(planFeatures(nav.plan, nav.stopsReached))
     }
 
     Box(modifier.fillMaxSize()) {
@@ -226,7 +237,7 @@ fun MapScreen(
                             .zoom(MapConfig.DEFAULT_ZOOM)
                             .build()
                         m.addOnMapLongClickListener { ll ->
-                            nav.chooseDestination(GeoPoint(ll.latitude, ll.longitude))
+                            if (!nav.navigating) pressedPoint = GeoPoint(ll.latitude, ll.longitude)
                             true
                         }
                         map = m
@@ -238,15 +249,21 @@ fun MapScreen(
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (nav.navigating) NavigationBanner(nav)
+            if (groupPlan != null && !iAmLeader && !nav.navigating && groupPlan != nav.plan && groupPlan != hiddenPlan) {
+                SharedPlanBanner(
+                    plan = groupPlan,
+                    by = groupPlanBy,
+                    onLoad = { nav.loadPlan(groupPlan); hiddenPlan = groupPlan },
+                    onHide = { hiddenPlan = groupPlan },
+                )
+            }
             sosAlerts.take(2).forEach { a ->
                 SosBanner(
                     alert = a,
                     myPosition = nav.myPosition,
                     onNavigate = {
                         if (a.lat != null && a.lon != null) {
-                            nav.stop()
-                            nav.chooseDestination(GeoPoint(a.lat, a.lon))
-                            nav.planRoute()
+                            nav.loadPlan(RidePlan(end = GeoPoint(a.lat, a.lon)))
                         }
                     },
                     onDismiss = { onDismissSos(a.id) },
@@ -283,10 +300,10 @@ fun MapScreen(
                 nav.navigating -> Button(onClick = { nav.stop() }) {
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
                 }
-                nav.destination != null -> RouteCard(nav)
+                !nav.plan.isEmpty -> RouteCard(nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan)
                 else -> {
                     Text(
-                        "Long-press the map to pick a destination",
+                        "Long-press the map to set a start, stops or destination",
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
@@ -298,6 +315,25 @@ fun MapScreen(
                 }
             }
         }
+    }
+
+    pressedPoint?.let { p ->
+        AlertDialog(
+            onDismissRequest = { pressedPoint = null },
+            title = { Text("Add to your ride plan") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon), style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.size(4.dp))
+                    FilledTonalButton(onClick = { nav.chooseDestination(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("End here (destination)") }
+                    FilledTonalButton(onClick = { nav.addStop(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) {
+                        Text("Add as stop ${nav.plan.stops.size + 1}")
+                    }
+                    OutlinedButton(onClick = { nav.setStart(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("Start here instead of my location") }
+                }
+            },
+            confirmButton = { TextButton(onClick = { pressedPoint = null }) { Text("Cancel") } },
+        )
     }
 
     pendingBounds?.let { bounds ->
@@ -318,34 +354,100 @@ fun MapScreen(
 }
 
 @Composable
-private fun RouteCard(nav: NavigationController) {
+private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?) {
+    val plan = nav.plan
     Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val r = nav.route
             if (r == null) {
-                Text("Destination set", style = MaterialTheme.typography.titleMedium)
-                Text("Routes are calculated on your phone, no signal needed.", style = MaterialTheme.typography.bodySmall)
+                Text("Ride plan", style = MaterialTheme.typography.titleMedium)
             } else {
                 Text("${formatDistance(r.distanceMeters)} · ${formatDuration(r.timeMillis)}", style = MaterialTheme.typography.titleLarge)
-                Text("Fastest route, calculated offline", style = MaterialTheme.typography.bodySmall)
             }
+            // Start, stops, destination, each removable.
+            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${coord(plan.start)}",
+                onRemove = plan.start?.let { { nav.setStart(null) } })
+            plan.stops.forEachIndexed { i, p ->
+                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${coord(p)}", onRemove = { nav.removeStop(i) })
+            }
+            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${coord(it)}" } ?: "Destination: long-press the map, then End here",
+                onRemove = plan.end?.let { { nav.clearEnd() } })
+            Text(
+                if (r == null) "Long-press the map to add stops. Routes are calculated on your phone, no signal needed."
+                else "Fastest route through your stops, calculated offline",
+                style = MaterialTheme.typography.bodySmall,
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (r == null) {
-                    Button(onClick = { nav.planRoute() }, enabled = !nav.busy) {
+                    Button(onClick = { nav.planRoute() }, enabled = !nav.busy && plan.end != null) {
                         if (nav.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
                         else Icon(Icons.Default.Directions, null)
-                        Spacer(Modifier.width(8.dp)); Text("Route here")
+                        Spacer(Modifier.width(8.dp)); Text("Plan route")
                     }
                 } else {
                     Button(onClick = { nav.start() }) {
                         Icon(Icons.Default.Navigation, null); Spacer(Modifier.width(8.dp)); Text("Start")
                     }
-                    FilledTonalButton(onClick = { nav.planRoute() }, enabled = !nav.busy) { Text("Re-plan") }
                 }
                 OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
             }
+            if (onShare != null && plan.end != null) {
+                val shared = sharedPlan == plan
+                TextButton(onClick = { onShare(plan) }, enabled = !shared) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp))
+                    Text(if (shared) "Shared with your group" else "Share plan with group")
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun PlanRow(badge: String, color: String, text: String, onRemove: (() -> Unit)?) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            Modifier.size(24.dp).background(Color(android.graphics.Color.parseColor(color)), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text(badge, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
+        Spacer(Modifier.width(12.dp))
+        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
+        if (onRemove != null) IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, "Remove") }
+    }
+}
+
+@Composable
+private fun SharedPlanBanner(plan: RidePlan, by: String, onLoad: () -> Unit, onHide: () -> Unit) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${by.ifBlank { "Your leader" }} shared a ride plan", style = MaterialTheme.typography.titleMedium)
+            Text("${plan.stops.size} stop${if (plan.stops.size == 1) "" else "s"} and a destination", style = MaterialTheme.typography.bodySmall)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onLoad) { Text("Ride this plan") }
+                TextButton(onClick = onHide) { Text("Not now") }
+            }
+        }
+    }
+}
+
+private fun coord(p: GeoPoint) = "%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon)
+
+private const val PLAN_START = "#2E7D32"
+private const val PLAN_STOP = "#F9A825"
+private const val PLAN_END = "#E53935"
+private const val PLAN_DONE = "#9E9E9E"
+
+/** Numbered markers for the plan: S, 1, 2, ..., E. Stops already reached are grey. */
+private fun planFeatures(plan: RidePlan, reached: Int): FeatureCollection {
+    val f = mutableListOf<Feature>()
+    fun add(p: GeoPoint, label: String, color: String) {
+        f += Feature.fromGeometry(Point.fromLngLat(p.lon, p.lat)).apply {
+            addStringProperty("label", label); addStringProperty("color", color)
+        }
+    }
+    plan.start?.let { add(it, "S", PLAN_START) }
+    plan.stops.forEachIndexed { i, p -> add(p, "${i + 1}", if (i < reached) PLAN_DONE else PLAN_STOP) }
+    plan.end?.let { add(it, "E", PLAN_END) }
+    return FeatureCollection.fromFeatures(f)
 }
 
 @Composable
@@ -446,10 +548,20 @@ private fun addOverlayLayers(style: Style) {
     )
     style.addLayer(
         CircleLayer("sawaari-dest", SRC_DEST).withProperties(
-            PropertyFactory.circleRadius(9f),
-            PropertyFactory.circleColor("#E53935"),
+            PropertyFactory.circleRadius(12f),
+            PropertyFactory.circleColor(Expression.toColor(Expression.get("color"))),
             PropertyFactory.circleStrokeColor("#FFFFFF"),
             PropertyFactory.circleStrokeWidth(3f),
+        )
+    )
+    style.addLayer(
+        SymbolLayer("sawaari-dest-labels", SRC_DEST).withProperties(
+            PropertyFactory.textField(Expression.get("label")),
+            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+            PropertyFactory.textSize(12f),
+            PropertyFactory.textColor("#FFFFFF"),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(true),
         )
     )
     style.addLayer(

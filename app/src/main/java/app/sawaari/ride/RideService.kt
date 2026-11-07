@@ -20,6 +20,7 @@ import app.sawaari.MainActivity
 import app.sawaari.R
 import app.sawaari.SawaariApp
 import app.sawaari.geo.GeoPoint
+import app.sawaari.group.Role
 import app.sawaari.location.locationUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -65,7 +66,7 @@ class RideService : Service() {
                 groups.group.collect { g ->
                     if (g == null) { stopSelf(); return@collect }
                     watcher.check(g.riders, groups.myUid, me, System.currentTimeMillis()).forEach { a ->
-                        notify(a.key.hashCode(), a.title, a.text, urgent = false)
+                        notify(a.key.hashCode(), a.title, a.text, urgent = a.urgent)
                     }
                 }
             }
@@ -73,7 +74,14 @@ class RideService : Service() {
                 groups.alerts.collect { alerts ->
                     alerts.filter { it.id !in notifiedSos }.forEach { a ->
                         notifiedSos += a.id
-                        notify(a.id.hashCode(), "SOS from ${a.name}", "Open Sawaari to see where they are and go to them.", urgent = true)
+                        val role = groups.group.value?.riders?.firstOrNull { it.uid == a.uid }?.role
+                        val title = when (role) { Role.LEADER -> "SOS from leader ${a.name}"; Role.SWEEP -> "SOS from sweep ${a.name}"; else -> "SOS from ${a.name}" }
+                        val text = when (role) {
+                            Role.LEADER -> "Go to them. The sweep or any rider can take over as leader in the Group tab."
+                            Role.SWEEP -> "Go to them. The leader can pick a new sweep in the Group tab."
+                            else -> "Open Sawaari to see where they are and go to them."
+                        }
+                        notify(a.id.hashCode(), title, text, urgent = true)
                     }
                 }
             }
@@ -114,6 +122,7 @@ class RideService : Service() {
             .setSmallIcon(R.drawable.ic_stat_ride)
             .setContentTitle(title)
             .setContentText(text)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(text))
             .setPriority(if (urgent) NotificationCompat.PRIORITY_MAX else NotificationCompat.PRIORITY_HIGH)
             .setCategory(if (urgent) NotificationCompat.CATEGORY_ALARM else NotificationCompat.CATEGORY_STATUS)
             .setContentIntent(openAppIntent())

@@ -17,6 +17,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
@@ -145,21 +146,88 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val text = "Join my ride \"${g.name}\" on Sawaari. Open the Group tab and enter code ${g.code}.\n" +
-                                "Get the app: https://github.com/AdithyaG1234/sawaari/releases/download/latest-debug/sawaari-debug.apk"
+                                "Get the app: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk"
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Invite riders"))
                         }) {
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Invite")
                         }
                         OutlinedButton(onClick = { repo.leave() }, enabled = !busy) { Text("Leave group") }
                     }
-                    Text("Your location is shared with the group while Sawaari is open.", style = MaterialTheme.typography.bodySmall)
+                    Text("Your location is shared with the group, even with the screen off, until you leave the group.", style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        }
+
+        val iAmLeader = g.leaderUid == repo.myUid
+        val meRider = g.riders.firstOrNull { it.uid == repo.myUid }
+
+        // Leader can't lead (no signal, SOS, or gone): let someone take over.
+        if (!iAmLeader && g.leaderInTrouble(now)) {
+            item {
+                Card(
+                    Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        val l = g.leader
+                        Text(
+                            when {
+                                l == null -> "The leader has left the group"
+                                l.sosAt > 0 && now - l.sosAt < RideGroup.SOS_TAKEOVER_MS -> "Leader ${l.name} sent an SOS"
+                                else -> "No signal from leader ${l.name} for ${(now - l.updatedAt) / 60_000} min"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            if (meRider?.role == Role.SWEEP) "As sweep, you can lead the group until they're back."
+                            else "Someone should lead the group. Usually that's the sweep, but any rider can take over.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Button(onClick = { repo.takeOverLead() }, enabled = !busy) { Text("Take over as leader") }
+                    }
+                }
+            }
+        }
+
+        if (meRider != null) {
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                        val onBreak = meRider.breakAt > 0
+                        Column(Modifier.weight(1f)) {
+                            Text(if (onBreak) "You're on a break" else "Stopping for tea or fuel?", style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                if (onBreak) "The group knows. It ends when you ride off, or tap Back on the road."
+                                else "Let the whole group know, so nobody worries.",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        Spacer(Modifier.width(8.dp))
+                        if (onBreak) OutlinedButton(onClick = { repo.setBreak(false) }) { Text("Back on the road") }
+                        else Button(onClick = { repo.setBreak(true) }) { Text("Taking a break") }
+                    }
+                }
+            }
+        }
+
+        g.plan?.let { plan ->
+            item {
+                Card(Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("Ride plan from ${g.planBy.ifBlank { "the leader" }}", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            "${plan.stops.size} stop${if (plan.stops.size == 1) "" else "s"} and a destination. " +
+                                if (iAmLeader) "Everyone sees it on their map." else "Open the Map tab and tap Ride this plan.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        if (iAmLeader) TextButton(onClick = { repo.clearSharedPlan() }) { Text("Stop sharing plan") }
+                    }
                 }
             }
         }
 
         item { Text("Riders (${g.riders.size})", style = MaterialTheme.typography.titleMedium) }
 
-        val iAmLeader = g.leaderUid == repo.myUid
         items(g.riders, key = { it.uid }) { r ->
             val isMe = r.uid == repo.myUid
             ListItem(
@@ -167,7 +235,10 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
                 supportingContent = { Text(riderStatus(r, myPosition, now, isMe)) },
                 leadingContent = { AssistChip(onClick = {}, label = { Text(r.role.replaceFirstChar { it.uppercase() }) }) },
                 trailingContent = {
-                    if (iAmLeader && !isMe && r.role != Role.SWEEP) TextButton(onClick = { repo.makeSweep(r.uid) }) { Text("Make sweep") }
+                    if (iAmLeader && !isMe) Column(horizontalAlignment = Alignment.End) {
+                        if (r.role != Role.SWEEP) TextButton(onClick = { repo.makeSweep(r.uid) }) { Text("Make sweep") }
+                        TextButton(onClick = { repo.makeLeader(r.uid) }) { Text("Make leader") }
+                    }
                 },
             )
         }
@@ -175,12 +246,16 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
 }
 
 private fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): String {
-    if (r.lat == null || r.lon == null || r.updatedAt == 0L) return "No location yet"
+    val flags = buildList {
+        if (r.sosAt > 0 && now - r.sosAt < RideGroup.SOS_TAKEOVER_MS) add("SOS sent")
+        if (r.breakAt > 0) add("on a break")
+    }.joinToString(" · ").let { if (it.isEmpty()) "" else "$it · " }
+    if (r.lat == null || r.lon == null || r.updatedAt == 0L) return flags + "No location yet"
     val ageMin = ((now - r.updatedAt) / 60_000).coerceAtLeast(0)
     val age = if (ageMin < 1) "just now" else "$ageMin min ago"
     val parts = mutableListOf<String>()
     if (!isMe && me != null) parts += "${formatDistance(distanceMeters(me, GeoPoint(r.lat, r.lon)))} away"
     if (r.speedKmh >= 3) parts += "${r.speedKmh.toInt()} km/h"
     parts += "updated $age"
-    return parts.joinToString(" · ")
+    return flags + parts.joinToString(" · ")
 }

@@ -16,8 +16,8 @@ android {
         applicationId = "app.sawaari"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 10
+        versionName = "1.0.0"
     }
 
     // A fixed debug key checked into the repo, so every CI build is signed the same way and
@@ -37,7 +37,10 @@ android {
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
+        // Release APKs (published on GitHub for v1.0 tags) use the same key as earlier builds, so they
+        // install over them. Before going on the Play Store, switch to a private upload key kept in CI secrets.
         release {
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }

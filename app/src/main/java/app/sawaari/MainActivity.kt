@@ -119,6 +119,10 @@ class MainActivity : ComponentActivity() {
                             onPositionChanged = { myPosition = it },
                             sosAlerts = sosAlerts,
                             onDismissSos = groups::dismissAlert,
+                            groupPlan = group?.plan,
+                            groupPlanBy = group?.planBy.orEmpty(),
+                            iAmLeader = group != null && group?.leaderUid == groups.myUid,
+                            onSharePlan = { groups.sharePlan(it) },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."

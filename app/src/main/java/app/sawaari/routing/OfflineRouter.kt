@@ -6,6 +6,7 @@ import com.graphhopper.GraphHopper
 import com.graphhopper.GraphHopperConfig
 import com.graphhopper.config.CHProfile
 import com.graphhopper.config.Profile
+import com.graphhopper.util.shapes.GHPoint
 import java.io.Closeable
 import java.io.File
 import java.util.Locale
@@ -31,15 +32,17 @@ class OfflineRouter(graphDir: File) : Closeable {
 
     private val translation = hopper.translationMap.getWithFallBack(Locale.ENGLISH)
 
-    fun route(from: GeoPoint, to: GeoPoint): Route {
-        val request = GHRequest(from.lat, from.lon, to.lat, to.lon)
+    /** Route through [points] in order: start, any stops, then the destination. */
+    fun route(points: List<GeoPoint>): Route {
+        require(points.size >= 2)
+        val request = GHRequest(points.map { GHPoint(it.lat, it.lon) })
             .setProfile(RoutingConfig.PROFILE)
             .setLocale(Locale.ENGLISH)
         val response = hopper.route(request)
         if (response.hasErrors()) {
             val reason = response.errors.firstOrNull()?.message.orEmpty()
             throw RoutingException(
-                if (reason.contains("Cannot find point", ignoreCase = true)) "No road found near the start or destination."
+                if (reason.contains("Cannot find point", ignoreCase = true)) "No road found near the start, a stop or the destination."
                 else "No route found. $reason".trim()
             )
         }

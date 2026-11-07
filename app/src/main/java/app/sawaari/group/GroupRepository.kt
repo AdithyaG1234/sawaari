@@ -2,6 +2,8 @@ package app.sawaari.group
 
 import android.content.Context
 import android.location.Location
+import app.sawaari.geo.GeoPoint
+import app.sawaari.nav.RidePlan
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
@@ -30,6 +32,10 @@ data class Rider(
     val lon: Double?,
     val speedKmh: Float,
     val updatedAt: Long,
+    /** When they said they're taking a break, or 0. */
+    val breakAt: Long = 0L,
+    /** When they last sent an SOS, or 0. */
+    val sosAt: Long = 0L,
 )
 
 data class SosAlert(
@@ -46,7 +52,27 @@ data class RideGroup(
     val name: String,
     val leaderUid: String,
     val riders: List<Rider>,
-)
+    /** The ride plan the leader shared, if any. */
+    val plan: RidePlan? = null,
+    val planBy: String = "",
+    val planTs: Long = 0L,
+) {
+    val leader: Rider? get() = riders.firstOrNull { it.uid == leaderUid }
+
+    /**
+     * True when the leader can't lead right now: no location update for [LEADER_SILENT_MS],
+     * an SOS in the last hour, or they've left. Then any rider may take over (the rules allow it too).
+     */
+    fun leaderInTrouble(now: Long): Boolean {
+        val l = leader ?: return true
+        return (l.updatedAt > 0 && now - l.updatedAt > LEADER_SILENT_MS) || (l.sosAt > 0 && now - l.sosAt < SOS_TAKEOVER_MS)
+    }
+
+    companion object {
+        const val LEADER_SILENT_MS = 10 * 60_000L
+        const val SOS_TAKEOVER_MS = 60 * 60_000L
+    }
+}
 
 /**
  * Ride groups over Firebase Realtime Database: create or join with a 6-letter code,
@@ -54,8 +80,10 @@ data class RideGroup(
  *
  * Data layout (see database.rules.json):
  *   groups/{code}/meta              {name, leader, createdAt}
- *   groups/{code}/members/{uid}     {name, role, joinedAt}
+ *   groups/{code}/members/{uid}     {name, role, joinedAt, breakAt?, sosAt?}
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
+ *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
+ *   groups/{code}/alerts/{id}       {uid, name, lat?, lon?, ts}
  */
 class GroupRepository(context: Context, private val scope: CoroutineScope) {
 
@@ -153,13 +181,65 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         db.getReference("groups/${g.code}").updateChildren(updates).await()
     }
 
+    /** Leader only: hand the leader role to [uid]. I become a rider. */
+    fun makeLeader(uid: String) = action {
+        val g = _group.value ?: return@action
+        val me = myUid ?: return@action
+        db.getReference("groups/${g.code}").updateChildren(
+            mapOf("meta/leader" to uid, "members/$uid/role" to Role.LEADER, "members/$me/role" to Role.RIDER)
+        ).await()
+    }
+
+    /**
+     * Take over as leader while the leader is in trouble (see [RideGroup.leaderInTrouble]).
+     * The old leader becomes a rider; if I was the sweep, the group needs a new sweep.
+     */
+    fun takeOverLead() = action {
+        val g = _group.value ?: return@action
+        val me = myUid ?: return@action
+        val updates = mutableMapOf<String, Any>("meta/leader" to me, "members/$me/role" to Role.LEADER)
+        if (g.leader != null && g.leaderUid != me) updates["members/${g.leaderUid}/role"] = Role.RIDER
+        db.getReference("groups/${g.code}").updateChildren(updates).await()
+    }
+
+    /** Tell the group I'm stopping for a break (or that I'm riding again). */
+    fun setBreak(on: Boolean) {
+        val code = _group.value?.code ?: return
+        val uid = myUid ?: return
+        val ref = db.getReference("groups/$code/members/$uid/breakAt")
+        if (on) ref.setValue(System.currentTimeMillis()) else ref.removeValue()
+    }
+
+    /** Leader only: share [plan] so every rider can load the same route. */
+    fun sharePlan(plan: RidePlan) = action {
+        val g = _group.value ?: return@action
+        val end = plan.end ?: return@action
+        fun pt(p: GeoPoint) = mapOf("lat" to p.lat, "lon" to p.lon)
+        val data = mutableMapOf<String, Any>(
+            "end" to pt(end),
+            "stops" to plan.stops.map { pt(it) },
+            "by" to _myName.value.ifBlank { "Leader" },
+            "ts" to System.currentTimeMillis(),
+        )
+        plan.start?.let { data["start"] = pt(it) }
+        db.getReference("groups/${g.code}/plan").setValue(data).await()
+    }
+
+    fun clearSharedPlan() = action {
+        val g = _group.value ?: return@action
+        db.getReference("groups/${g.code}/plan").removeValue().await()
+    }
+
     /** Tell everyone in the group that I need help. Returns false if I'm not in a group. */
     fun sendSos(location: Location?): Boolean {
         val code = _group.value?.code ?: return false
         val uid = myUid ?: return false
-        val data = mutableMapOf<String, Any>("uid" to uid, "name" to _myName.value.ifBlank { "Rider" }, "ts" to System.currentTimeMillis())
+        val now = System.currentTimeMillis()
+        val data = mutableMapOf<String, Any>("uid" to uid, "name" to _myName.value.ifBlank { "Rider" }, "ts" to now)
         location?.let { data["lat"] = it.latitude; data["lon"] = it.longitude }
         db.getReference("groups/$code/alerts").push().setValue(data)
+        // Marks me as in trouble, so if I'm the leader another rider can take over.
+        db.getReference("groups/$code/members/$uid/sosAt").setValue(now)
         return true
     }
 
@@ -175,6 +255,9 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         val now = System.currentTimeMillis()
         if (now - lastPublish < PUBLISH_INTERVAL_MS) return
         lastPublish = now
+        // Riding again at speed ends a break automatically.
+        val onBreak = _group.value?.riders?.firstOrNull { it.uid == uid }?.breakAt?.let { it > 0 } == true
+        if (onBreak && location.hasSpeed() && location.speed * 3.6f > BREAK_END_KMH) setBreak(false)
         db.getReference("groups/$code/locations/$uid").setValue(
             mapOf(
                 "lat" to location.latitude,
@@ -263,6 +346,8 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
                 lon = loc.child("lon").getValue(Double::class.java),
                 speedKmh = ((loc.child("speed").getValue(Double::class.java) ?: 0.0) * 3.6).toFloat(),
                 updatedAt = loc.child("ts").getValue(Long::class.java) ?: 0L,
+                breakAt = m.child("breakAt").getValue(Long::class.java) ?: 0L,
+                sosAt = m.child("sosAt").getValue(Long::class.java) ?: 0L,
             )
         }.sortedWith(compareBy({ roleOrder(it.role) }, { it.name.lowercase() }))
         return RideGroup(
@@ -270,7 +355,21 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
             name = meta.child("name").getValue(String::class.java) ?: "Ride group",
             leaderUid = meta.child("leader").getValue(String::class.java).orEmpty(),
             riders = riders,
+            plan = parsePlan(s.child("plan")),
+            planBy = s.child("plan/by").getValue(String::class.java).orEmpty(),
+            planTs = s.child("plan/ts").getValue(Long::class.java) ?: 0L,
         )
+    }
+
+    private fun parsePlan(p: DataSnapshot): RidePlan? {
+        fun pt(s: DataSnapshot): GeoPoint? {
+            val lat = s.child("lat").getValue(Double::class.java) ?: return null
+            val lon = s.child("lon").getValue(Double::class.java) ?: return null
+            return GeoPoint(lat, lon)
+        }
+        val end = pt(p.child("end")) ?: return null
+        val stops = p.child("stops").children.sortedBy { it.key?.toIntOrNull() ?: 0 }.mapNotNull { pt(it) }
+        return RidePlan(start = pt(p.child("start")), stops = stops, end = end)
     }
 
     private fun parseAlerts(s: DataSnapshot): List<SosAlert> {
@@ -290,6 +389,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
     companion object {
         const val CODE_LENGTH = 6
         const val PUBLISH_INTERVAL_MS = 10_000L
+        const val BREAK_END_KMH = 25f
         const val ALERT_WINDOW_MS = 3 * 60 * 60_000L
         private const val KEY_CODE = "code"
         private const val KEY_NAME = "name"
