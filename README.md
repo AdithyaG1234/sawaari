@@ -36,7 +36,7 @@ For SOS to send texts on its own, go to Settings → Apps → Sawaari → ⋮ �
 Test builds from main: https://github.com/AdithyaG1234/sawaari/releases/download/latest-debug/sawaari-debug.apk
 
 ## Releasing
-Push a version tag, for example `git tag v1.0.0 && git push origin v1.0.0`. CI builds the release APKs and publishes them as the latest release.
+Actions → Build APK → Run workflow, enter a version such as `1.0.0` (or push a tag like `v1.0.0`). CI builds the release APKs and publishes them as the latest release.
 
 ## Group rides setup (one time)
 1. Create a Firebase project and add an Android app with package `app.sawaari`.
