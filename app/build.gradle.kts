@@ -4,6 +4,10 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Firebase (group rides) is switched on once app/google-services.json is added.
+// Without it the app still builds; the Group tab explains the one-time setup.
+if (file("google-services.json").exists()) apply(plugin = "com.google.gms.google-services")
+
 android {
     namespace = "app.sawaari"
     compileSdk = 35
@@ -73,6 +77,12 @@ dependencies {
         exclude(group = "org.codehaus.janino") // only for server-side custom models, can't run on Android
         exclude(group = "com.fasterxml.jackson.dataformat", module = "jackson-dataformat-xml") // GPX export, unused
     }
+
+    // Group rides: live locations over Firebase Realtime Database (free Spark plan)
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-auth")
+    implementation("com.google.firebase:firebase-database")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     testImplementation("junit:junit:4.13.2")
 }

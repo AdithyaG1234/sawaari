@@ -6,7 +6,8 @@ An Android app for motorcycle riders on weekend group trips: offline maps, navig
 - Kotlin + Jetpack Compose, minSdk 26
 - [MapLibre Android](https://github.com/maplibre/maplibre-native) for maps (open source, no API key)
 - OpenStreetMap vector tiles from [OpenFreeMap](https://openfreemap.org) (free). Later: self-hosted PMTiles.
-- Planned: GraphHopper on-device for offline routing, Firebase (free tier) for sign-in, group tracking and alerts
+- [GraphHopper](https://github.com/graphhopper/graphhopper) 4.0 on the phone for offline routing; routing packs built in GitHub Actions (`build-routing.yml`)
+- Firebase Realtime Database + anonymous Auth (free Spark plan) for group rides
 
 Map data © OpenStreetMap contributors.
 
@@ -15,6 +16,17 @@ Map data © OpenStreetMap contributors.
 - "Download this area": save the visible part of the map for offline use
 - Offline maps screen: one-tap popular ride areas (Coorg, Lonavala, Manali-Leh, Spiti, etc.), progress, size, resume and delete
 - Downloaded areas display with no network
+
+## Download
+Latest debug APK: https://github.com/AdithyaG1234/sawaari/releases/download/latest-debug/sawaari-debug.apk
+
+## Group rides setup (one time)
+1. Create a Firebase project and add an Android app with package `app.sawaari`.
+2. Create a Realtime Database, then enable Anonymous sign-in under Authentication.
+3. Download `google-services.json` (after creating the database) into `app/`.
+4. Paste `database.rules.json` into Realtime Database → Rules and publish.
+
+Without `google-services.json` the app still builds; the Group tab just explains the setup.
 
 ## Build
 Open the folder in Android Studio (Ladybug or newer) and press Run, or:
@@ -25,8 +37,8 @@ Open the folder in Android Studio (Ladybug or newer) and press Run, or:
 
 ## Roadmap (MVP)
 1. Offline maps and region downloads ✔ (first cut)
-2. Offline turn-by-turn navigation (GraphHopper)
-3. Group rides: invite link, live locations, leader/sweep, fell-behind alerts
+2. Offline turn-by-turn navigation (GraphHopper) ✔
+3. Group rides: invite code, live locations, leader/sweep ✔ (needs Firebase setup); fell-behind alerts next
 4. SOS with SMS to emergency contacts
 5. Trip planner with multi-day itinerary
 6. Ride recording and stats (stored as structured data, ready for the AI Instagram infographic later)
