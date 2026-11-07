@@ -27,6 +27,16 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     buildFeatures { compose = true }
+    // One APK per phone chip type, so riders download ~half the size.
+    // arm64-v8a covers almost every phone from the last several years.
+    splits {
+        abi {
+            isEnable = true
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = false
+        }
+    }
     packaging {
         resources {
             excludes += setOf(

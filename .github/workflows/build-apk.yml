@@ -29,7 +29,10 @@ jobs:
       # On main, also attach the APK to a "latest-debug" release so it can be downloaded
       # straight onto a phone (Actions artifacts need a GitHub login and come zipped).
       - if: github.ref == 'refs/heads/main'
-        run: cp app/build/outputs/apk/debug/app-debug.apk sawaari-debug.apk
+        run: |
+          cp app/build/outputs/apk/debug/app-arm64-v8a-debug.apk sawaari-debug.apk
+          cp app/build/outputs/apk/debug/app-armeabi-v7a-debug.apk sawaari-debug-older-phones.apk
+          ls -lh sawaari-debug*.apk
       - if: github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
@@ -37,6 +40,10 @@ jobs:
           name: Latest debug build
           prerelease: true
           make_latest: false
-          body: "Debug APK built automatically from the latest commit on main (${{ github.sha }})."
-          files: sawaari-debug.apk
+          body: |
+            Debug APK built automatically from the latest commit on main (${{ github.sha }}).
+            Most phones: sawaari-debug.apk. Only if that one won't install (older 32-bit phones): sawaari-debug-older-phones.apk.
+          files: |
+            sawaari-debug.apk
+            sawaari-debug-older-phones.apk
           overwrite_files: true
