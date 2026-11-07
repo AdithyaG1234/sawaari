@@ -25,9 +25,12 @@ class GroupWatcherTest {
 
     @Test fun stoppedAfterFiveMinutes() {
         val w = GroupWatcher()
-        w.check(listOf(leader(), rider(12.969, 30f, 0)), "me", me, 0)
-        assertTrue(w.check(listOf(leader(), rider(12.969, 0f, 4 * 60_000L)), "me", me, 4 * 60_000L).isEmpty())
-        val a = w.check(listOf(leader(), rider(12.969, 0f, 5 * 60_000L)), "me", me, 5 * 60_000L)
+        val t0 = 1_000L // updatedAt 0 means "no location yet", so start later
+        w.check(listOf(leader(), rider(12.969, 30f, t0)), "me", me, t0)
+        val t4 = t0 + 4 * 60_000L
+        assertTrue(w.check(listOf(leader(), rider(12.969, 0f, t4)), "me", me, t4).isEmpty())
+        val t5 = t0 + 5 * 60_000L
+        val a = w.check(listOf(leader(), rider(12.969, 0f, t5)), "me", me, t5)
         assertEquals(listOf("Ravi has stopped"), a.map { it.title })
     }
 
