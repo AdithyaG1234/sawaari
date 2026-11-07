@@ -2,12 +2,11 @@ package app.sawaari.sos
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.Location
-import android.net.Uri
 import android.os.Build
 import android.telephony.SmsManager
+import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,34 +40,39 @@ object SosSender {
             context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
 
     /**
-     * Sends [text] to every contact. Returns how many were sent directly;
-     * if SMS permission is missing, opens the SMS app pre-filled instead and returns 0.
+     * Sends [text] to every contact in the background, with no tap needed.
+     * Returns how many contacts it went to, or -1 when Android hasn't given Sawaari SMS permission.
+     * It never opens the SMS app: in an emergency the rider may not be able to tap Send.
      */
     fun send(context: Context, contacts: List<EmergencyContact>, text: String): Int {
         if (contacts.isEmpty()) return 0
-        if (!canSendDirectly(context)) {
-            openSmsApp(context, contacts, text)
-            return 0
-        }
-        val sms: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java)
-        else @Suppress("DEPRECATION") SmsManager.getDefault()
+        if (!canSendDirectly(context)) return -1
+        val managers = smsManagers(context)
         var sent = 0
         contacts.forEach { c ->
-            runCatching {
-                val parts = sms.divideMessage(text)
-                sms.sendMultipartTextMessage(c.phone, null, parts, null, null)
-                sent++
+            // Dual-SIM phones set to "ask every time" have no default SIM, so try each SIM in turn.
+            val ok = managers.any { sms ->
+                runCatching { sms.sendMultipartTextMessage(c.phone, null, sms.divideMessage(text), null, null) }.isSuccess
             }
+            if (ok) sent++
         }
-        if (sent == 0) openSmsApp(context, contacts, text)
         return sent
     }
 
-    private fun openSmsApp(context: Context, contacts: List<EmergencyContact>, text: String) {
-        val to = contacts.joinToString(";") { it.phone }
-        val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:$to"))
-            .putExtra("sms_body", text)
-            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        runCatching { context.startActivity(intent) }
+    private fun smsManagers(context: Context): List<SmsManager> {
+        val base: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java)
+        else @Suppress("DEPRECATION") SmsManager.getDefault()
+        val ids = linkedSetOf(
+            SubscriptionManager.getDefaultSmsSubscriptionId(),
+            SubscriptionManager.getDefaultVoiceSubscriptionId(),
+            SubscriptionManager.getDefaultSubscriptionId(),
+        ).filter { it != SubscriptionManager.INVALID_SUBSCRIPTION_ID }
+        val perSim = ids.mapNotNull { id ->
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) base.createForSubscriptionId(id)
+                else @Suppress("DEPRECATION") SmsManager.getSmsManagerForSubscriptionId(id)
+            }.getOrNull()
+        }
+        return listOf(base) + perSim
     }
 }

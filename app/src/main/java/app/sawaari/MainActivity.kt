@@ -1,6 +1,11 @@
 package app.sawaari
 
+import android.Manifest
+import android.os.Build
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import app.sawaari.ride.RideService
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -20,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
 import app.sawaari.sos.SosScreen
 import app.sawaari.sos.SosSender
+import app.sawaari.sos.SosPermissions
 import app.sawaari.sos.SosSettings
 import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
@@ -65,6 +71,21 @@ class MainActivity : ComponentActivity() {
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 LaunchedEffect(Unit) { repo.refresh() }
 
+                // While in a ride group, keep sharing location with the screen off (ongoing notification).
+                val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+                var sosNeedsSettings by remember { mutableStateOf(false) }
+                // With emergency contacts saved, get SMS permission up front so SOS never waits on a tap.
+                LaunchedEffect(sosContacts.isNotEmpty()) {
+                    if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) smsPermission.launch(Manifest.permission.SEND_SMS)
+                }
+                LaunchedEffect(group != null, myPosition != null) {
+                    if (group != null) {
+                        if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        RideService.start(applicationContext)
+                    } else RideService.stop(applicationContext)
+                }
+
                 Scaffold(
                     bottomBar = {
                         NavigationBar {
@@ -102,7 +123,13 @@ class MainActivity : ComponentActivity() {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
                                     tab = 3
-                                } else sosCountdown = 5
+                                } else {
+                                    // Ask for SMS now, during the countdown, so the text can go out without a tap.
+                                    if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) {
+                                        smsPermission.launch(Manifest.permission.SEND_SMS)
+                                    }
+                                    sosCountdown = 5
+                                }
                             },
                         )
                         if (tab == 3) Surface(Modifier.fillMaxSize()) {
@@ -134,12 +161,15 @@ class MainActivity : ComponentActivity() {
                             val text = SosSender.message(myName, lastLocation, sosSettings.medical.value)
                             val sent = SosSender.send(applicationContext, sosContacts, text)
                             val groupAlerted = groups.sendSos(lastLocation)
+                            sosNeedsSettings = sent < 0
                             sosResult = buildString {
                                 append(
                                     when {
                                         sosContacts.isEmpty() -> "No emergency contacts saved."
                                         sent > 0 -> "SOS text sent to $sent contact${if (sent > 1) "s" else ""}."
-                                        else -> "Your SMS app is open with the SOS message. Tap Send."
+                                        sent < 0 -> "SOS text NOT sent: Sawaari isn't allowed to send SMS. Tap Open settings, then " +
+                                            "⋮ → Allow restricted settings → Permissions → SMS → Allow."
+                                        else -> "SOS text could not be sent. Check that your SIM has signal and SMS balance."
                                     }
                                 )
                                 if (groupAlerted) append(" Your ride group has been alerted.")
@@ -167,6 +197,9 @@ class MainActivity : ComponentActivity() {
                         title = { Text("SOS") },
                         text = { Text(msg) },
                         confirmButton = { TextButton(onClick = { sosResult = null }) { Text("OK") } },
+                        dismissButton = if (sosNeedsSettings) {
+                            { TextButton(onClick = { sosResult = null; SosPermissions.openAppSettings(applicationContext) }) { Text("Open settings") } }
+                        } else null,
                     )
                 }
             }

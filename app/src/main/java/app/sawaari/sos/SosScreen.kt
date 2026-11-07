@@ -38,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.compose.LifecycleResumeEffect
 
 /** Emergency contacts, medical info and SMS permission for the SOS button. */
 @Composable
@@ -50,6 +52,10 @@ fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
     val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         canSms = SosSender.canSendDirectly(context)
     }
+    LaunchedEffect(contacts.isNotEmpty()) {
+        if (contacts.isNotEmpty() && !canSms) smsPermission.launch(Manifest.permission.SEND_SMS)
+    }
+    LifecycleResumeEffect(Unit) { canSms = SosSender.canSendDirectly(context); onPauseOrDispose {} }
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         if (result.resultCode == Activity.RESULT_OK && uri != null) {
@@ -120,8 +126,15 @@ fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
                     if (canSms) {
                         Text("Allowed. SOS texts go out on their own, even if you can't touch the phone.", style = MaterialTheme.typography.bodySmall)
                     } else {
-                        Text("Not allowed yet. Without it, SOS opens your SMS app with the message ready and you must tap Send.", style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(onClick = { smsPermission.launch(Manifest.permission.SEND_SMS) }) { Text("Allow SMS") }
+                        Text(
+                            "Not allowed yet, so SOS can't text your contacts. Tap Allow SMS. If Android says it's a restricted setting, " +
+                                "tap Open settings, then ⋮ → Allow restricted settings → Permissions → SMS → Allow.",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton(onClick = { smsPermission.launch(Manifest.permission.SEND_SMS) }) { Text("Allow SMS") }
+                            OutlinedButton(onClick = { SosPermissions.openAppSettings(context) }) { Text("Open settings") }
+                        }
                     }
                 }
             }
