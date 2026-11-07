@@ -3,6 +3,7 @@ name: Build APK
 on:
   push:
     branches: [main]
+  pull_request:
   workflow_dispatch:
 
 permissions:
@@ -20,15 +21,17 @@ jobs:
       # The GitHub ubuntu runner already ships the Android SDK (ANDROID_HOME),
       # so no separate setup-android step is needed.
       - uses: gradle/actions/setup-gradle@v5
-      - run: chmod +x gradlew && ./gradlew assembleDebug --stacktrace
+      - run: chmod +x gradlew && ./gradlew testDebugUnitTest assembleDebug --stacktrace
       - uses: actions/upload-artifact@v5
         with:
           name: sawaari-debug-apk
           path: app/build/outputs/apk/debug/*.apk
-      # Also attach the APK to a "latest-debug" release so it can be downloaded
+      # On main, also attach the APK to a "latest-debug" release so it can be downloaded
       # straight onto a phone (Actions artifacts need a GitHub login and come zipped).
-      - run: cp app/build/outputs/apk/debug/app-debug.apk sawaari-debug.apk
-      - uses: softprops/action-gh-release@v2
+      - if: github.ref == 'refs/heads/main'
+        run: cp app/build/outputs/apk/debug/app-debug.apk sawaari-debug.apk
+      - if: github.ref == 'refs/heads/main'
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: latest-debug
           name: Latest debug build

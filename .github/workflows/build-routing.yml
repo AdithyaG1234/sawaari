@@ -1,0 +1,89 @@
+name: Build routing packs
+
+# Builds the offline routing packs the app downloads for turn-by-turn navigation.
+# Each pack is an OpenStreetMap extract cropped to a ride area and pre-processed by
+# GraphHopper 4.0 (fast "contraction hierarchies" routing), zipped, and attached to
+# the "routing-v1" release. Keep this list in sync with RoutingPacks.kt in the app.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - routing/**
+      - .github/workflows/build-routing.yml
+  pull_request:
+    paths:
+      - routing/**
+      - .github/workflows/build-routing.yml
+
+permissions:
+  contents: write
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: bengaluru-coorg
+            zone: southern-zone
+            bbox: "75.2,11.6,78.2,13.9"
+          - id: ooty-munnar
+            zone: southern-zone
+            bbox: "75.7,9.8,77.8,12.0"
+          - id: mumbai-pune-goa
+            zone: western-zone
+            bbox: "72.7,14.7,74.6,19.4"
+          - id: himachal-ladakh
+            zone: northern-zone
+            bbox: "76.5,31.0,78.8,34.6"
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Install osmium
+        run: sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
+      - name: Download OpenStreetMap extract
+        run: curl -fsSL -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${{ matrix.zone }}-latest.osm.pbf"
+      - name: Crop to ride area
+        run: osmium extract -b "${{ matrix.bbox }}" --strategy smart zone.osm.pbf -o area.osm.pbf && rm zone.osm.pbf
+      - name: Build GraphHopper graph
+        run: |
+          curl -fsSL -o gh.jar https://github.com/graphhopper/graphhopper/releases/download/4.0/graphhopper-web-4.0.jar
+          java -Xmx12g \
+            -Ddw.graphhopper.datareader.file=area.osm.pbf \
+            -Ddw.graphhopper.graph.location=graph \
+            -jar gh.jar import routing/gh-config.yml
+      - name: Zip pack
+        run: cd graph && zip -r -9 "../routing-${{ matrix.id }}.zip" . && ls -lh ../routing-*.zip
+      - uses: actions/upload-artifact@v5
+        with:
+          name: routing-${{ matrix.id }}
+          path: routing-${{ matrix.id }}.zip
+          retention-days: 3
+
+  release:
+    needs: pack
+    # Pull requests only check that the packs build; publishing happens from main.
+    if: ${{ !cancelled() && github.event_name != 'pull_request' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: packs
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: routing-v1
+          name: Offline routing packs (v1)
+          prerelease: true
+          make_latest: false
+          body: |
+            Offline routing data for Sawaari turn-by-turn navigation (GraphHopper 4.0, car profile).
+            Map data © OpenStreetMap contributors, ODbL.
+          files: packs/*.zip
+          overwrite_files: true

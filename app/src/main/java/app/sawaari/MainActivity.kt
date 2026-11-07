@@ -4,11 +4,14 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material3.Icon
+import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -34,6 +37,8 @@ class MainActivity : ComponentActivity() {
             SawaariTheme {
                 val repo = remember { OfflineRegionRepository(applicationContext) }
                 val downloads by repo.downloads.collectAsState()
+                val routing = remember { (application as SawaariApp).routing }
+                val routingStates by routing.states.collectAsState()
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 LaunchedEffect(Unit) { repo.refresh() }
 
@@ -51,18 +56,24 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                 ) { padding ->
-                    when (tab) {
-                        0 -> MapScreen(
+                    // The map stays composed under the other tab so navigation keeps running.
+                    Box(Modifier.padding(padding).fillMaxSize()) {
+                        MapScreen(
+                            routing = routing,
                             onDownloadArea = { name, bounds -> repo.download(name, bounds); tab = 1 },
-                            modifier = Modifier.padding(padding),
                         )
-                        else -> DownloadsScreen(
-                            downloads = downloads,
-                            onDownloadPreset = repo::download,
-                            onDelete = repo::delete,
-                            onResume = { repo.resume(it) },
-                            modifier = Modifier.padding(padding),
-                        )
+                        if (tab == 1) Surface(Modifier.fillMaxSize()) {
+                            DownloadsScreen(
+                                downloads = downloads,
+                                onDownloadPreset = repo::download,
+                                onDelete = repo::delete,
+                                onResume = { repo.resume(it) },
+                                routingStates = routingStates,
+                                onDownloadRoutingPack = routing::download,
+                                onDeleteRoutingPack = routing::delete,
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                     }
                 }
             }
