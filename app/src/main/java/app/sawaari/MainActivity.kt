@@ -48,6 +48,8 @@ import app.sawaari.map.MapScreen
 import app.sawaari.offline.DownloadsScreen
 import app.sawaari.offline.OfflineRegionRepository
 import app.sawaari.ui.theme.SawaariTheme
+import app.sawaari.tour.TourGuide
+import app.sawaari.tour.TourGuideDialog
 
 class MainActivity : ComponentActivity() {
     /** A route link that opened the app (Sawaari or Google Maps link, or text shared to Sawaari). */
@@ -87,6 +89,9 @@ class MainActivity : ComponentActivity() {
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
                 val app = application as SawaariApp
+                var showTour by rememberSaveable { mutableStateOf(TourGuide.shouldShow(applicationContext)) }
+                // A route link opening the app on first launch goes straight to the route, not the tour.
+                LaunchedEffect(Unit) { if (incomingLink.value != null) { showTour = false; TourGuide.markSeen(applicationContext) } }
                 LaunchedEffect(Unit) { repo.refresh() }
                 LaunchedEffect(incomingLink.value) { if (incomingLink.value != null) tab = 0 }
 
@@ -152,6 +157,7 @@ class MainActivity : ComponentActivity() {
                             places = app.places,
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
+                            onTourGuide = { showTour = true },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
@@ -189,6 +195,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 }
+
+                if (showTour) TourGuideDialog(
+                    onClose = { showTour = false; TourGuide.markSeen(applicationContext) },
+                    onGoTo = { showTour = false; TourGuide.markSeen(applicationContext); tab = it.index },
+                )
 
                 sosCountdown?.let { left ->
                     LaunchedEffect(left) {
