@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.MyLocation
@@ -146,6 +147,7 @@ fun MapScreen(
     importLink: String? = null,
     onImportHandled: () -> Unit = {},
     onTourGuide: (() -> Unit)? = null,
+    onThemes: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -407,6 +409,10 @@ fun MapScreen(
                 onClick = onTourGuide,
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = 148.dp, end = 16.dp),
             ) { Icon(Icons.AutoMirrored.Filled.HelpOutline, contentDescription = "Tour guide") }
+            if (onThemes != null) SmallFloatingActionButton(
+                onClick = onThemes,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 204.dp, end = 16.dp),
+            ) { Icon(Icons.Default.Palette, contentDescription = "App colours") }
         }
 
         LargeFloatingActionButton(

@@ -1,6 +1,7 @@
 package app.sawaari.tour
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -45,8 +47,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import kotlinx.coroutines.launch
 
 /** Bottom tabs a tour step can jump to. Numbers match the tabs in MainActivity. */
@@ -133,8 +133,10 @@ object TourGuide {
             Icons.Default.Flag, "You're ready to ride",
             listOf(
                 "Quick checklist: maps downloaded, SOS contacts added, group joined.",
+                "Like different colours? Pick a colour theme below, or later with the palette button on the map.",
                 "Ride safe. Tap ? on the map whenever you want this tour again.",
             ),
+            action = "Choose app colours",
         ),
     )
 
@@ -155,13 +157,16 @@ object TourGuide {
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-fun TourGuideDialog(onClose: () -> Unit, onGoTo: (TourTab) -> Unit) {
+fun TourGuideDialog(onClose: () -> Unit, onGoTo: (TourTab) -> Unit, onTheme: () -> Unit) {
     val steps = TourGuide.steps
     val pager = rememberPagerState { steps.size }
     val scope = rememberCoroutineScope()
-    Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+    BackHandler(onBack = onClose)
+    // Drawn over the app (not in a separate dialog window) so the system bar padding is exact
+    // and the buttons never sit under the phone's navigation bar.
+    run {
         Surface(Modifier.fillMaxSize()) {
-            Column(Modifier.fillMaxSize().systemBarsPadding().padding(16.dp)) {
+            Column(Modifier.fillMaxSize().systemBarsPadding().navigationBarsPadding().padding(16.dp)) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text("Tour guide", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                     TextButton(onClick = onClose) { Text("Skip") }
@@ -186,9 +191,9 @@ fun TourGuideDialog(onClose: () -> Unit, onGoTo: (TourTab) -> Unit) {
                                 Text(it, style = MaterialTheme.typography.bodyLarge)
                             }
                         }
-                        if (s.tab != null && s.action != null) {
+                        if (s.action != null) {
                             Spacer(Modifier.height(16.dp))
-                            OutlinedButton(onClick = { onGoTo(s.tab) }) { Text(s.action) }
+                            OutlinedButton(onClick = { if (s.tab != null) onGoTo(s.tab) else onTheme() }) { Text(s.action) }
                         }
                     }
                 }
