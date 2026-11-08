@@ -48,6 +48,8 @@ import app.sawaari.map.MapScreen
 import app.sawaari.offline.DownloadsScreen
 import app.sawaari.offline.OfflineRegionRepository
 import app.sawaari.ui.theme.SawaariTheme
+import app.sawaari.ui.theme.ThemeSettings
+import app.sawaari.ui.theme.ThemePickerDialog
 import app.sawaari.tour.TourGuide
 import app.sawaari.tour.TourGuideDialog
 
@@ -70,8 +72,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         if (savedInstanceState == null) incomingLink.value = linkFrom(intent)
         enableEdgeToEdge()
+        ThemeSettings.load(applicationContext)
         setContent {
-            SawaariTheme {
+            val palette by ThemeSettings.palette.collectAsState()
+            val darkMode by ThemeSettings.mode.collectAsState()
+            SawaariTheme(palette, darkMode) {
                 val repo = remember { OfflineRegionRepository(applicationContext) }
                 val downloads by repo.downloads.collectAsState()
                 val routing = remember { (application as SawaariApp).routing }
@@ -89,6 +94,7 @@ class MainActivity : ComponentActivity() {
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
                 val app = application as SawaariApp
+                var showThemes by rememberSaveable { mutableStateOf(false) }
                 var showTour by rememberSaveable { mutableStateOf(TourGuide.shouldShow(applicationContext)) }
                 // A route link opening the app on first launch goes straight to the route, not the tour.
                 LaunchedEffect(Unit) { if (incomingLink.value != null) { showTour = false; TourGuide.markSeen(applicationContext) } }
@@ -158,6 +164,7 @@ class MainActivity : ComponentActivity() {
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
+                            onThemes = { showThemes = true },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
@@ -199,6 +206,13 @@ class MainActivity : ComponentActivity() {
                 if (showTour) TourGuideDialog(
                     onClose = { showTour = false; TourGuide.markSeen(applicationContext) },
                     onGoTo = { showTour = false; TourGuide.markSeen(applicationContext); tab = it.index },
+                    onTheme = { showThemes = true },
+                )
+                if (showThemes) ThemePickerDialog(
+                    palette = palette, mode = darkMode,
+                    onPalette = { ThemeSettings.setPalette(applicationContext, it) },
+                    onMode = { ThemeSettings.setMode(applicationContext, it) },
+                    onDismiss = { showThemes = false },
                 )
 
                 sosCountdown?.let { left ->
