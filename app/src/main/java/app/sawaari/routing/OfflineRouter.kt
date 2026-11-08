@@ -21,6 +21,7 @@ class OfflineRouter(graphDir: File) : Closeable {
     private val hopper = GraphHopper().apply {
         init(
             GraphHopperConfig()
+                .putObject("graph.location", graphDir.absolutePath)
                 .putObject("graph.dataaccess", "MMAP")
                 .putObject("graph.flag_encoders", RoutingConfig.VEHICLE)
                 .setProfiles(listOf(Profile(RoutingConfig.PROFILE).setVehicle(RoutingConfig.VEHICLE).setWeighting("fastest")))
