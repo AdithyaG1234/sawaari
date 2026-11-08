@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.TextButton
@@ -48,6 +49,7 @@ import app.sawaari.map.MapScreen
 import app.sawaari.offline.DownloadsScreen
 import app.sawaari.offline.OfflineRegionRepository
 import app.sawaari.ui.theme.SawaariTheme
+import app.sawaari.ui.SettingsScreen
 import app.sawaari.ui.theme.ThemeSettings
 import app.sawaari.ui.theme.ThemePickerDialog
 import app.sawaari.tour.TourGuide
@@ -135,6 +137,10 @@ class MainActivity : ComponentActivity() {
                                 selected = tab == 3, onClick = { tab = 3 },
                                 icon = { Icon(Icons.Default.HealthAndSafety, null) }, label = { Text("SOS") },
                             )
+                            NavigationBarItem(
+                                selected = tab == 4, onClick = { tab = 4 },
+                                icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") },
+                            )
                         }
                     },
                 ) { padding ->
@@ -164,7 +170,6 @@ class MainActivity : ComponentActivity() {
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
-                            onThemes = { showThemes = true },
                             onSosPressed = {
                                 if (sosContacts.isEmpty() && group == null) {
                                     sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
@@ -178,6 +183,15 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                         )
+                        if (tab == 4) Surface(Modifier.fillMaxSize()) {
+                            SettingsScreen(
+                                palette = palette, mode = darkMode,
+                                onPalette = { ThemeSettings.setPalette(applicationContext, it) },
+                                onMode = { ThemeSettings.setMode(applicationContext, it) },
+                                onTourGuide = { showTour = true },
+                                modifier = Modifier.fillMaxSize(),
+                            )
+                        }
                         if (tab == 3) Surface(Modifier.fillMaxSize()) {
                             SosScreen(sosSettings, Modifier.fillMaxSize())
                         }

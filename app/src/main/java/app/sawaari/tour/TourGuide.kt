@@ -117,7 +117,7 @@ object TourGuide {
             Icons.Default.HealthAndSafety, "6. Set up SOS now",
             listOf(
                 "In the SOS tab, add emergency contacts and your blood group or medical notes, and allow SMS.",
-                "Press the red SOS button on the map. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
+                "Press the red SOS button at the bottom right of the map. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
             ),
             TourTab.SOS, "Open SOS",
         ),
@@ -133,7 +133,7 @@ object TourGuide {
             Icons.Default.Flag, "You're ready to ride",
             listOf(
                 "Quick checklist: maps downloaded, SOS contacts added, group joined.",
-                "Like different colours? Pick a colour theme below, or later with the palette button on the map.",
+                "Like different colours? Pick a colour theme below, or later in the Settings tab.",
                 "Ride safe. Tap ? on the map whenever you want this tour again.",
             ),
             action = "Choose app colours",
