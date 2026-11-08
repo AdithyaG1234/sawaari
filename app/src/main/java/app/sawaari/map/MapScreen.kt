@@ -818,43 +818,34 @@ private fun openInGoogleMaps(context: android.content.Context, p: GeoPoint, @Sup
     runCatching { context.startActivity(app) }.onFailure { runCatching { context.startActivity(web) } }
 }
 
-/** Idle-state card: how to plan a ride, and saving the visible map for riding without signal. */
+/** Idle-state hint plus a compact pill for saving the visible map for riding without signal. */
 @Composable
 private fun SaveAreaCard(onSave: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Surface(
             shape = RoundedCornerShape(50),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-            shadowElevation = 2.dp,
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+            shadowElevation = 1.dp,
         ) {
             Text(
                 "Search or long-press the map to plan a ride",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelMedium,
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
             )
         }
-        Card(
-            shape = RoundedCornerShape(20.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            modifier = Modifier.fillMaxWidth(),
+        Surface(
+            onClick = onSave,
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surface,
+            shadowElevation = 4.dp,
         ) {
-            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.padding(start = 6.dp, end = 14.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Box(
-                    Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                    Modifier.size(28.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
                     contentAlignment = Alignment.Center,
-                ) { Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.onPrimaryContainer) }
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text("Save this map offline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-                    Text(
-                        "Keeps the area on screen on your phone, so the map still shows where there's no signal. Best on Wi-Fi.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+                ) { Icon(Icons.Default.CloudDownload, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer) }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = onSave) { Text("Save") }
+                Text("Save this map for offline use", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             }
         }
     }
