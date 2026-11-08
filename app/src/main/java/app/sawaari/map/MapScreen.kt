@@ -95,7 +95,7 @@ import org.maplibre.android.maps.MapView
 import org.maplibre.android.maps.Style
 import app.sawaari.group.Rider
 import app.sawaari.group.SosAlert
-import androidx.compose.material3.LargeFloatingActionButton
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.ui.graphics.Color
 import app.sawaari.group.Role
 import org.maplibre.android.style.expressions.Expression
@@ -415,12 +415,12 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             // SOS sits at the bottom right, just above whatever card is showing, within thumb reach.
-            LargeFloatingActionButton(
+            FloatingActionButton(
                 onClick = onSosPressed,
                 containerColor = Color(0xFFD32F2F),
                 contentColor = Color.White,
                 modifier = Modifier.align(Alignment.End).padding(bottom = 8.dp),
-            ) { Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge) }
+            ) { Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall) }
             SnackbarHost(snackbar)
             if (nav.route != null && places != null) {
                 PlacesPanel(
