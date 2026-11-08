@@ -5,6 +5,7 @@ import android.location.Location
 import android.speech.tts.TextToSpeech
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.setValue
 import app.sawaari.geo.GeoPoint
 import app.sawaari.routing.Route
@@ -29,6 +30,10 @@ class NavigationController(
     /** Start (optional), stops and destination. Long-press the map to build it. */
     var plan by mutableStateOf(RidePlan()); private set
     val destination: GeoPoint? get() = plan.end
+    /** Names for plan points that came from search or a shared link, e.g. "Madikeri". */
+    val labels = mutableStateMapOf<GeoPoint, String>()
+    fun labelFor(p: GeoPoint): String? = labels[p]
+    fun setLabel(p: GeoPoint, name: String?) { if (!name.isNullOrBlank()) labels[p] = name }
     var route by mutableStateOf<Route?>(null); private set
     var navigating by mutableStateOf(false); private set
     var progress by mutableStateOf<NavProgress?>(null); private set
@@ -58,6 +63,13 @@ class NavigationController(
         updatePlan { it.withStop(p) }
     }
     fun removeStop(index: Int) = updatePlan { it.withoutStop(index) }
+
+    /** Add a stop as the next one: while navigating, reroute through it now; otherwise just add it. */
+    fun addStopAhead(p: GeoPoint) {
+        if (!navigating) { addStop(p); if (plan.end != null) planRoute(); return }
+        plan = plan.copy(stops = plan.stops.take(stopsReached) + p + plan.stops.drop(stopsReached))
+        reroute()
+    }
     fun clearEnd() = updatePlan { it.copy(end = null) }
 
     /** Replace the whole plan, e.g. with the one the leader shared, and plan the route. */
@@ -148,10 +160,14 @@ class NavigationController(
         prompts.check(p.nextStepIndex, p.distanceToNextStep, step.text)?.let { speak(it) }
     }
 
+    /** Called when navigation reroutes (the rider left the route), so the group can be told. */
+    var onReroute: (() -> Unit)? = null
+
     private fun reroute() {
         val to = plan.end ?: return
         val from = myPosition ?: return
         speak("Recalculating.")
+        onReroute?.invoke()
         // Go on to the stops not yet reached, then the destination.
         val ahead = plan.stops.drop(stopsReached)
         rerouteJob = scope.launch {

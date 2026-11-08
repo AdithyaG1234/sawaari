@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sawaari ride plan</title>
+<meta property="og:title" content="Sawaari ride plan">
+<meta property="og:description" content="Open this route in Sawaari, or in Google Maps.">
+<style>
+  :root { --bg:#fff7f0; --fg:#1d1b19; --muted:#6b625b; --brand:#e65100; --card:#ffffff; --line:#eadfd6; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#171412; --fg:#f3ece6; --muted:#b3a79d; --card:#221e1b; --line:#3a332e; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:480px; margin:0 auto; padding:32px 16px; }
+  .logo { width:56px; height:56px; border-radius:16px; background:var(--brand); display:grid; place-items:center; }
+  h1 { font-size:24px; margin:16px 0 4px; }
+  p { color:var(--muted); margin:0 0 16px; }
+  ol { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 12px 12px 36px; margin:0 0 20px; }
+  li { padding:4px 0; }
+  a.btn { display:block; text-align:center; text-decoration:none; font-weight:600; padding:14px; border-radius:12px; margin:0 0 10px; }
+  .primary { background:var(--brand); color:#fff; }
+  .secondary { border:1px solid var(--line); color:var(--fg); background:var(--card); }
+  small { color:var(--muted); display:block; margin-top:16px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="logo"><svg width="32" height="32" viewBox="0 0 108 108"><path fill="#fff" d="M54,26 C63.9,26 72,34.1 72,44 C72,56 54,72 54,72 C54,72 36,56 36,44 C36,34.1 44.1,26 54,26 Z"/><circle cx="54" cy="44" r="7" fill="#e65100"/></svg></div>
+  <h1>Ride plan</h1>
+  <p id="sub">Opening in Sawaari…</p>
+  <ol id="stops"></ol>
+  <a class="btn primary" id="open">Open in Sawaari</a>
+  <a class="btn secondary" id="gmaps">Open in Google Maps</a>
+  <a class="btn secondary" href="https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk">Get the Sawaari app (Android)</a>
+  <small>Sawaari: offline maps, navigation and group rides for bikers.</small>
+</main>
+<script>
+  // Link format: ?s=lat,lon&w=lat,lon|lat,lon&e=lat,lon&n=name|name|...
+  var q = new URLSearchParams(location.search);
+  var s = q.get('s'), w = (q.get('w') || '').split('|').filter(Boolean), e = q.get('e');
+  var names = (q.get('n') || '').split('|');
+  var pts = (s ? [s] : []).concat(w, e ? [e] : []);
+  var list = document.getElementById('stops');
+  if (!s) { var li0 = document.createElement('li'); li0.textContent = 'Your location'; list.appendChild(li0); }
+  pts.forEach(function (p, i) {
+    var li = document.createElement('li');
+    li.textContent = names[i] || p;
+    list.appendChild(li);
+  });
+  var g = 'https://www.google.com/maps/dir/?api=1&travelmode=driving' + (s ? '&origin=' + s : '') + (e ? '&destination=' + e : '') +
+          (w.length ? '&waypoints=' + encodeURIComponent(w.join('|')) : '');
+  document.getElementById('gmaps').href = g;
+  var app = 'intent://route' + location.search + '#Intent;scheme=sawaari;package=app.sawaari;S.browser_fallback_url=' + encodeURIComponent(g) + ';end';
+  var isAndroid = /Android/i.test(navigator.userAgent);
+  document.getElementById('open').href = isAndroid ? app : g;
+  if (!e) { document.getElementById('sub').textContent = 'This link is missing its destination.'; }
+  else if (isAndroid) { location.href = app; setTimeout(function () { document.getElementById('sub').textContent = 'If Sawaari didn’t open, use a button below.'; }, 1500); }
+  else { document.getElementById('sub').textContent = 'Sawaari is an Android app. You can open this route in Google Maps.'; }
+</script>
+</body>
+</html>

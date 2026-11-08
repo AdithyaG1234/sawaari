@@ -18,6 +18,13 @@ android {
         targetSdk = 35
         versionCode = 10
         versionName = "1.0.0"
+        // Google Places key for ratings: from the PLACES_API_KEY environment variable (a GitHub secret in CI)
+        // or local.properties. Without it the app just shows rider ratings.
+        val placesKey = System.getenv("PLACES_API_KEY")
+            ?: rootProject.file("local.properties").takeIf { it.exists() }?.readLines()
+                ?.firstOrNull { it.startsWith("PLACES_API_KEY=") }?.substringAfter("=")
+            ?: ""
+        buildConfigField("String", "PLACES_API_KEY", "\"${placesKey.trim()}\"")
     }
 
     // A fixed debug key checked into the repo, so every CI build is signed the same way and
@@ -49,7 +56,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    buildFeatures { compose = true }
+    buildFeatures { compose = true; buildConfig = true }
     // One APK per phone chip type, so riders download ~half the size.
     // arm64-v8a covers almost every phone from the last several years.
     splits {

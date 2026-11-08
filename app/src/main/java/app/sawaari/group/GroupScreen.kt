@@ -1,7 +1,9 @@
 package app.sawaari.group
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import app.sawaari.sos.EmergencyContact
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -49,7 +51,14 @@ import kotlinx.coroutines.delay
 
 /** Create or join a ride group, share the code, and see who's riding. */
 @Composable
-fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier = Modifier) {
+fun GroupScreen(
+    repo: GroupRepository,
+    myPosition: GeoPoint?,
+    modifier: Modifier = Modifier,
+    sosContacts: List<EmergencyContact> = emptyList(),
+    onRideTo: (GeoPoint) -> Unit = {},
+) {
+    var selected by remember { mutableStateOf<Rider?>(null) }
     val group by repo.group.collectAsState()
     val busy by repo.busy.collectAsState()
     val error by repo.error.collectAsState()
@@ -210,6 +219,21 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
             }
         }
 
+        g.meet?.let { meet ->
+            item {
+                MeetingCard(meet, g.name, myPosition, iAmLeader, onNavigate = { onRideTo(meet.point) }, onClear = { repo.clearMeetingPoint() })
+            }
+        } ?: run {
+            if (iAmLeader) item {
+                Text(
+                    "Tip: long-press the map and choose Set meeting point to tell everyone where to meet before the ride.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+
+        if (meRider != null) item { ContactSharingCard(meRider, sosContacts, repo::shareContactDetails) }
+
         g.plan?.let { plan ->
             item {
                 Card(Modifier.fillMaxWidth()) {
@@ -231,6 +255,7 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
         items(g.riders, key = { it.uid }) { r ->
             val isMe = r.uid == repo.myUid
             ListItem(
+                modifier = Modifier.clickable(enabled = !isMe) { selected = r },
                 headlineContent = { Text(if (isMe) "${r.name} (you)" else r.name) },
                 supportingContent = { Text(riderStatus(r, myPosition, now, isMe)) },
                 leadingContent = { AssistChip(onClick = {}, label = { Text(r.role.replaceFirstChar { it.uppercase() }) }) },
@@ -243,7 +268,16 @@ fun GroupScreen(repo: GroupRepository, myPosition: GeoPoint?, modifier: Modifier
             )
         }
     }
+    selected?.let { r ->
+        val live = group?.riders?.firstOrNull { it.uid == r.uid } ?: r
+        RiderDetailsDialog(
+            live, myPosition,
+            onNavigate = if (live.lat != null && live.lon != null) ({ onRideTo(GeoPoint(live.lat, live.lon)) }) else null,
+            onDismiss = { selected = null },
+        )
+    }
 }
+
 
 private fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): String {
     val flags = buildList {

@@ -60,6 +60,23 @@ import app.sawaari.geo.GeoPoint
 import app.sawaari.location.locationUpdates
 import app.sawaari.nav.NavigationController
 import app.sawaari.nav.RidePlan
+import app.sawaari.places.PlaceCategory
+import app.sawaari.places.PlaceDialog
+import app.sawaari.places.PlaceMatcher
+import app.sawaari.places.PlaceOnRoute
+import app.sawaari.places.PlacesPanel
+import app.sawaari.places.PlacesRepository
+import app.sawaari.places.PlaceSearch
+import app.sawaari.places.MapSearchBar
+import app.sawaari.share.RouteImportException
+import app.sawaari.share.RouteImporter
+import app.sawaari.share.RouteShare
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import app.sawaari.group.MeetingPoint
+import app.sawaari.group.MeetingPointDialog
+import app.sawaari.group.RiderDetailsDialog
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.Share
@@ -96,6 +113,7 @@ private const val SRC_ROUTE = "sawaari-route"
 private const val SRC_ME = "sawaari-me"
 private const val SRC_DEST = "sawaari-dest"
 private const val SRC_RIDERS = "sawaari-riders"
+private const val SRC_POIS = "sawaari-pois"
 
 /**
  * Full-screen map. Works offline for downloaded areas.
@@ -117,19 +135,96 @@ fun MapScreen(
     groupPlanBy: String = "",
     iAmLeader: Boolean = false,
     onSharePlan: ((RidePlan) -> Unit)? = null,
+    meet: MeetingPoint? = null,
+    onSetMeetingPoint: ((GeoPoint, Long, String) -> Unit)? = null,
+    onReroute: () -> Unit = {},
+    onGroupRoute: (List<GeoPoint>?) -> Unit = {},
+    rideTo: GeoPoint? = null,
+    onRideToHandled: () -> Unit = {},
+    places: PlacesRepository? = null,
+    importLink: String? = null,
+    onImportHandled: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val nav = remember { NavigationController(context, routing, scope) }
     DisposableEffect(nav) { onDispose { nav.shutdown() } }
+    nav.onReroute = onReroute
+    LaunchedEffect(rideTo) {
+        rideTo?.let { nav.loadPlan(RidePlan(end = it)); onRideToHandled() }
+    }
+    // While riding the group's shared plan, publish the route line so alerts can spot riders off it.
+    LaunchedEffect(nav.navigating, nav.route, groupPlan, nav.plan) {
+        onGroupRoute(if (nav.navigating && groupPlan != null && nav.plan == groupPlan) nav.route?.points else null)
+    }
+    var tappedRider by remember { mutableStateOf<String?>(null) }
+
+    var meetAt by remember { mutableStateOf<GeoPoint?>(null) }
 
     val mapView = rememberMapViewWithLifecycle()
     var map by remember { mutableStateOf<MapLibreMap?>(null) }
     var style by remember { mutableStateOf<Style?>(null) }
     var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
     var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var pressedLabel by remember { mutableStateOf<String?>(null) }
+    val placeSearch = remember(places) { places?.let { PlaceSearch(it) } }
+    val importer = remember(placeSearch) { placeSearch?.let { RouteImporter(it) } }
+    fun importRoute(text: String) {
+        val imp = importer ?: return
+        scope.launch {
+            nav.message = "Opening the shared route…"
+            try {
+                val result = imp.import(text, nav.myPosition ?: map?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) })
+                result.names.forEach { (p, n) -> nav.setLabel(p, n) }
+                nav.loadPlan(result.plan)
+                val n = result.plan.stops.size
+                nav.message = "Route loaded" + (if (n > 0) " with $n stop${if (n > 1) "s" else ""}" else "") +
+                    (if (result.skipped > 0) ". ${result.skipped} place(s) couldn't be found." else ".")
+            } catch (e: RouteImportException) {
+                nav.message = e.message
+            } catch (e: Exception) {
+                nav.message = "Couldn't open that link."
+            }
+        }
+    }
+    LaunchedEffect(importLink, importer) {
+        if (importLink != null && importer != null) { importRoute(importLink); onImportHandled() }
+    }
     var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
     val snackbar = remember { SnackbarHostState() }
+
+    // Places along the route (food, fuel, mechanics, tyres, hospitals).
+    val visiblePlacesRef = remember { object { var value: List<PlaceOnRoute> = emptyList() } }
+    var placeCategory by remember { mutableStateOf<PlaceCategory?>(null) }
+    var placesOnRoute by remember { mutableStateOf<List<PlaceOnRoute>>(emptyList()) }
+    var placesLoading by remember { mutableStateOf(false) }
+    var openPlace by remember { mutableStateOf<PlaceOnRoute?>(null) }
+    LaunchedEffect(nav.route, placeCategory) {
+        val r = nav.route
+        val cat = placeCategory
+        if (r == null || cat == null || places == null) { placesOnRoute = emptyList(); return@LaunchedEffect }
+        placesLoading = true
+        placesOnRoute = withContext(Dispatchers.Default) {
+            val all = places.placesNear(r.points.first()) + places.placesNear(r.points.last())
+            PlaceMatcher.alongRoute(r, all.distinctBy { it.id }.filter { it.category == cat })
+        }
+        placesLoading = false
+    }
+    val currentAlong = if (nav.navigating) nav.route?.let { r -> nav.progress?.let { r.geometryLength - it.distanceRemaining } } else null
+    val visiblePlaces = remember(placesOnRoute, currentAlong?.let { (it / 500).toInt() }) {
+        (if (currentAlong != null) placesOnRoute.filter { it.alongMeters >= currentAlong - 200 } else placesOnRoute).take(40)
+    }
+    visiblePlacesRef.value = visiblePlaces
+    LaunchedEffect(style, visiblePlaces) {
+        val features = visiblePlaces.map { p ->
+            Feature.fromGeometry(Point.fromLngLat(p.place.point.lon, p.place.point.lat)).apply {
+                addStringProperty("id", p.place.id)
+                addStringProperty("label", p.place.category.letter)
+                addStringProperty("color", p.place.category.color)
+            }
+        }
+        style?.getSourceAs<GeoJsonSource>(SRC_POIS)?.setGeoJson(FeatureCollection.fromFeatures(features))
+    }
 
     // Location permission and GPS updates.
     fun hasPermission() = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
@@ -214,13 +309,14 @@ fun MapScreen(
                 val ageMin = (now - r.updatedAt) / 60_000
                 Feature.fromGeometry(Point.fromLngLat(r.lon!!, r.lat!!)).apply {
                     addStringProperty("label", if (ageMin >= 2) "${r.name} (${ageMin}m ago)" else r.name)
+                    addStringProperty("uid", r.uid)
                     addStringProperty("color", when (r.role) { Role.LEADER -> "#2E7D32"; Role.SWEEP -> "#EF6C00"; else -> "#7B1FA2" })
                 }
             }
         s.getSourceAs<GeoJsonSource>(SRC_RIDERS)?.setGeoJson(FeatureCollection.fromFeatures(features))
     }
-    LaunchedEffect(style, nav.plan, nav.stopsReached) {
-        style?.getSourceAs<GeoJsonSource>(SRC_DEST)?.setGeoJson(planFeatures(nav.plan, nav.stopsReached))
+    LaunchedEffect(style, nav.plan, nav.stopsReached, meet) {
+        style?.getSourceAs<GeoJsonSource>(SRC_DEST)?.setGeoJson(planFeatures(nav.plan, nav.stopsReached, meet?.point))
     }
 
     Box(modifier.fillMaxSize()) {
@@ -236,8 +332,17 @@ fun MapScreen(
                             .target(LatLng(MapConfig.DEFAULT_LAT, MapConfig.DEFAULT_LON))
                             .zoom(MapConfig.DEFAULT_ZOOM)
                             .build()
+                        m.addOnMapClickListener { ll ->
+                            val px = m.projection.toScreenLocation(ll)
+                            val box = android.graphics.RectF(px.x - 40, px.y - 40, px.x + 40, px.y + 40)
+                            val hit = m.queryRenderedFeatures(box, "sawaari-riders").firstOrNull()?.getStringProperty("uid")
+                            if (hit != null) tappedRider = hit
+                            val poi = if (hit == null) m.queryRenderedFeatures(box, "sawaari-pois").firstOrNull()?.getStringProperty("id") else null
+                            if (poi != null) openPlace = visiblePlacesRef.value.firstOrNull { it.place.id == poi }
+                            hit != null || poi != null
+                        }
                         m.addOnMapLongClickListener { ll ->
-                            if (!nav.navigating) pressedPoint = GeoPoint(ll.latitude, ll.longitude)
+                            if (!nav.navigating) { pressedLabel = null; pressedPoint = GeoPoint(ll.latitude, ll.longitude) }
                             true
                         }
                         map = m
@@ -249,6 +354,20 @@ fun MapScreen(
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (nav.navigating) NavigationBanner(nav)
+            if (!nav.navigating && placeSearch != null) {
+                MapSearchBar(
+                    search = placeSearch,
+                    near = { map?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) } ?: nav.myPosition },
+                    onPick = { r ->
+                        map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(r.point.lat, r.point.lon), 13.0), 800)
+                        nav.setLabel(r.point, r.name)
+                        pressedLabel = r.name
+                        pressedPoint = r.point
+                    },
+                    onLink = ::importRoute,
+                    onOpenLinkSettings = { openLinkSettings(context) },
+                )
+            }
             if (groupPlan != null && !iAmLeader && !nav.navigating && groupPlan != nav.plan && groupPlan != hiddenPlan) {
                 SharedPlanBanner(
                     plan = groupPlan,
@@ -280,7 +399,7 @@ fun MapScreen(
                     else if (p == null) nav.message = "Finding your location… this can take a minute outdoors."
                     else map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(p.lat, p.lon), 14.0), 800)
                 },
-                modifier = Modifier.align(Alignment.TopEnd).padding(16.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 92.dp, end = 16.dp),
             ) { Icon(Icons.Default.MyLocation, contentDescription = "My location") }
         }
 
@@ -296,14 +415,25 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SnackbarHost(snackbar)
+            if (nav.route != null && places != null) {
+                PlacesPanel(
+                    selected = placeCategory, onSelect = { placeCategory = it },
+                    places = visiblePlaces, loading = placesLoading, currentAlong = currentAlong,
+                    repo = places, onOpen = { openPlace = it },
+                )
+                Spacer(Modifier.size(8.dp))
+            }
             when {
                 nav.navigating -> Button(onClick = { nav.stop() }) {
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
                 }
-                !nav.plan.isEmpty -> RouteCard(nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan)
+                !nav.plan.isEmpty -> RouteCard(
+                    nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
+                    onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
+                )
                 else -> {
                     Text(
-                        "Long-press the map to set a start, stops or destination",
+                        "Search above or long-press the map to plan a ride",
                         style = MaterialTheme.typography.labelLarge,
                         modifier = Modifier.padding(bottom = 8.dp),
                     )
@@ -320,19 +450,45 @@ fun MapScreen(
     pressedPoint?.let { p ->
         AlertDialog(
             onDismissRequest = { pressedPoint = null },
-            title = { Text("Add to your ride plan") },
+            title = { Text(pressedLabel ?: "Add to your ride plan") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Text("%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        (if (pressedLabel != null) "Add to your ride plan · " else "") + "%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
                     Spacer(Modifier.size(4.dp))
                     FilledTonalButton(onClick = { nav.chooseDestination(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("End here (destination)") }
                     FilledTonalButton(onClick = { nav.addStop(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) {
                         Text("Add as stop ${nav.plan.stops.size + 1}")
                     }
                     OutlinedButton(onClick = { nav.setStart(p); pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("Start here instead of my location") }
+                    if (onSetMeetingPoint != null) {
+                        OutlinedButton(onClick = { meetAt = p; pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("Set meeting point for the group") }
+                    }
                 }
             },
             confirmButton = { TextButton(onClick = { pressedPoint = null }) { Text("Cancel") } },
+        )
+    }
+
+    openPlace?.let { item ->
+        if (places != null) PlaceDialog(
+            item, places, nav.navigating,
+            onAddStop = { nav.addStopAhead(item.place.point) },
+            onDismiss = { openPlace = null },
+        )
+    }
+    meetAt?.let { p ->
+        MeetingPointDialog(p, onSave = { time, note -> onSetMeetingPoint?.invoke(p, time, note) }, onDismiss = { meetAt = null })
+    }
+    tappedRider?.let { uid ->
+        val r = groupRiders.firstOrNull { it.uid == uid }
+        if (r == null) tappedRider = null
+        else RiderDetailsDialog(
+            r, nav.myPosition,
+            onNavigate = if (r.lat != null && r.lon != null) ({ nav.loadPlan(RidePlan(end = GeoPoint(r.lat, r.lon))) }) else null,
+            onDismiss = { tappedRider = null },
         )
     }
 
@@ -354,7 +510,7 @@ fun MapScreen(
 }
 
 @Composable
-private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?) {
+private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?, onShareRoute: () -> Unit) {
     val plan = nav.plan
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -365,15 +521,15 @@ private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?,
                 Text("${formatDistance(r.distanceMeters)} · ${formatDuration(r.timeMillis)}", style = MaterialTheme.typography.titleLarge)
             }
             // Start, stops, destination, each removable.
-            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${coord(plan.start)}",
+            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${nav.labelFor(plan.start) ?: coord(plan.start)}",
                 onRemove = plan.start?.let { { nav.setStart(null) } })
             plan.stops.forEachIndexed { i, p ->
-                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${coord(p)}", onRemove = { nav.removeStop(i) })
+                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${nav.labelFor(p) ?: coord(p)}", onRemove = { nav.removeStop(i) })
             }
-            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${coord(it)}" } ?: "Destination: long-press the map, then End here",
+            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${nav.labelFor(it) ?: coord(it)}" } ?: "Destination: search above, or long-press the map",
                 onRemove = plan.end?.let { { nav.clearEnd() } })
             Text(
-                if (r == null) "Long-press the map to add stops. Routes are calculated on your phone, no signal needed."
+                if (r == null) "Search above or long-press the map to add stops. Routes are calculated on your phone, no signal needed."
                 else "Fastest route through your stops, calculated offline",
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -390,6 +546,11 @@ private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?,
                     }
                 }
                 OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
+            }
+            if (plan.end != null) {
+                TextButton(onClick = onShareRoute) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share route (WhatsApp etc.)")
+                }
             }
             if (onShare != null && plan.end != null) {
                 val shared = sharedPlan == plan
@@ -435,9 +596,10 @@ private const val PLAN_START = "#2E7D32"
 private const val PLAN_STOP = "#F9A825"
 private const val PLAN_END = "#E53935"
 private const val PLAN_DONE = "#9E9E9E"
+private const val PLAN_MEET = "#6A1B9A"
 
 /** Numbered markers for the plan: S, 1, 2, ..., E. Stops already reached are grey. */
-private fun planFeatures(plan: RidePlan, reached: Int): FeatureCollection {
+private fun planFeatures(plan: RidePlan, reached: Int, meet: GeoPoint?): FeatureCollection {
     val f = mutableListOf<Feature>()
     fun add(p: GeoPoint, label: String, color: String) {
         f += Feature.fromGeometry(Point.fromLngLat(p.lon, p.lat)).apply {
@@ -447,6 +609,7 @@ private fun planFeatures(plan: RidePlan, reached: Int): FeatureCollection {
     plan.start?.let { add(it, "S", PLAN_START) }
     plan.stops.forEachIndexed { i, p -> add(p, "${i + 1}", if (i < reached) PLAN_DONE else PLAN_STOP) }
     plan.end?.let { add(it, "E", PLAN_END) }
+    meet?.let { add(it, "M", PLAN_MEET) }
     return FeatureCollection.fromFeatures(f)
 }
 
@@ -530,6 +693,7 @@ private fun addOverlayLayers(style: Style) {
     style.addSource(GeoJsonSource(SRC_DEST))
     style.addSource(GeoJsonSource(SRC_ME))
     style.addSource(GeoJsonSource(SRC_RIDERS))
+    style.addSource(GeoJsonSource(SRC_POIS))
     style.addLayer(
         LineLayer("sawaari-route-casing", SRC_ROUTE).withProperties(
             PropertyFactory.lineColor("#0D47A1"),
@@ -544,6 +708,24 @@ private fun addOverlayLayers(style: Style) {
             PropertyFactory.lineWidth(6f),
             PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
             PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND),
+        )
+    )
+    style.addLayer(
+        CircleLayer("sawaari-pois", SRC_POIS).withProperties(
+            PropertyFactory.circleRadius(10f),
+            PropertyFactory.circleColor(Expression.toColor(Expression.get("color"))),
+            PropertyFactory.circleStrokeColor("#FFFFFF"),
+            PropertyFactory.circleStrokeWidth(2f),
+        )
+    )
+    style.addLayer(
+        SymbolLayer("sawaari-poi-labels", SRC_POIS).withProperties(
+            PropertyFactory.textField(Expression.get("label")),
+            PropertyFactory.textFont(arrayOf("Noto Sans Regular")),
+            PropertyFactory.textSize(11f),
+            PropertyFactory.textColor("#FFFFFF"),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(true),
         )
     )
     style.addLayer(
@@ -616,4 +798,13 @@ private fun rememberMapViewWithLifecycle(): MapView {
         onDispose { lifecycle.removeObserver(observer) }
     }
     return mapView
+}
+
+/** Android 12+: the page where the rider lets Sawaari open Google Maps links. */
+private fun openLinkSettings(context: android.content.Context) {
+    val pkg = android.net.Uri.parse("package:${context.packageName}")
+    val intent = if (android.os.Build.VERSION.SDK_INT >= 31)
+        android.content.Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg)
+    else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
+    runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
 }

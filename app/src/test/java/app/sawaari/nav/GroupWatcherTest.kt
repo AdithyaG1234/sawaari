@@ -80,4 +80,58 @@ class GroupWatcherTest {
         assertEquals(listOf("No signal from Leader Adi"), a.map { it.title })
         assertTrue(a.single().urgent)
     }
+
+    @Test fun missedTurnAlertsEveryoneOnce() {
+        val w = GroupWatcher()
+        val now = 10 * 60_000L
+        val r = rider(12.969, 30f, now).copy(rerouteAt = now - 20_000)
+        assertEquals(listOf("Ravi missed a turn"), w.check(listOf(leader(), r, plainMe(now)), "me", me, now).map { it.title })
+        assertTrue(w.check(listOf(leader(), r, plainMe(now)), "me", me, now + 10_000).isEmpty())
+    }
+
+    @Test fun offThePlannedRoute() {
+        val w = GroupWatcher()
+        val now = 10 * 60_000L
+        val route = listOf(GeoPoint(12.90, 77.59), GeoPoint(13.00, 77.59)) // north-south line
+        val onRoute = rider(12.965, 40f, now) // close to the leader, so no fell-behind alert
+        assertTrue(w.check(listOf(leader(), onRoute), "me", me, now, route = route).isEmpty())
+        val off = Rider("r1", "Ravi", Role.RIDER, 12.965, 77.60, 40f, now + 1000) // ~1 km east
+        assertEquals(listOf("Ravi is off the planned route"), w.check(listOf(leader(), off), "me", me, now + 1000, route = route).map { it.title })
+    }
+
+    @Test fun stopsAtPlannedPlacesAreExpected() {
+        val t0 = 1_000L
+        val t5 = t0 + 5 * 60_000L
+        val stopHere = GeoPoint(12.969, 77.59)
+        val w = GroupWatcher()
+        w.check(listOf(leader(), rider(12.969, 30f, t0)), "me", me, t0, planned = listOf(stopHere))
+        assertTrue(w.check(listOf(leader(), rider(12.969, 0f, t5)), "me", me, t5, planned = listOf(stopHere)).isEmpty())
+
+        val w2 = GroupWatcher()
+        val elsewhere = GeoPoint(12.80, 77.59)
+        w2.check(listOf(leader(), rider(12.969, 30f, t0)), "me", me, t0, planned = listOf(elsewhere))
+        assertEquals(
+            listOf("Ravi stopped at an unplanned place"),
+            w2.check(listOf(leader(), rider(12.969, 0f, t5)), "me", me, t5, planned = listOf(elsewhere)).map { it.title },
+        )
+    }
+
+    @Test fun slowTrafficAfterFourMinutesOfCrawling() {
+        val w = GroupWatcher()
+        val t0 = 1_000L
+        w.check(listOf(leader(), rider(12.969, 10f, t0)), "me", me, t0)
+        val t3 = t0 + 3 * 60_000L
+        assertTrue(w.check(listOf(leader(), rider(12.969, 9f, t3)), "me", me, t3).isEmpty())
+        val t4 = t0 + 4 * 60_000L
+        assertEquals(listOf("Ravi is in slow traffic"), w.check(listOf(leader(), rider(12.969, 8f, t4)), "me", me, t4).map { it.title })
+    }
+
+    @Test fun riderIsToldWhenTheyFallBehindTheLeader() {
+        val w = GroupWatcher()
+        val now = 10 * 60_000L
+        val lead = Rider("L", "Adi", Role.LEADER, 12.97 + 0.03, 77.59, 40f, now)
+        val a = w.check(listOf(lead, plainMe(now)), "me", me, now)
+        assertEquals(1, a.size)
+        assertTrue(a.single().title.startsWith("You're"))
+    }
 }
