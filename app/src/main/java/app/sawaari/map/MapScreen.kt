@@ -153,6 +153,7 @@ fun MapScreen(
     onTourGuide: (() -> Unit)? = null,
 ) {
     val context = LocalContext.current
+    val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val nav = remember { NavigationController(context, routing, scope) }
     DisposableEffect(nav) { onDispose { nav.shutdown() } }
@@ -344,7 +345,12 @@ fun MapScreen(
                             .target(LatLng(MapConfig.DEFAULT_LAT, MapConfig.DEFAULT_LON))
                             .zoom(MapConfig.DEFAULT_ZOOM)
                             .build()
+                        // Touching the map closes the search box and the keyboard.
+                        m.addOnCameraMoveStartedListener { reason ->
+                            if (reason == MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) focusManager.clearFocus()
+                        }
                         m.addOnMapClickListener { ll ->
+                            focusManager.clearFocus()
                             val px = m.projection.toScreenLocation(ll)
                             val box = android.graphics.RectF(px.x - 40, px.y - 40, px.x + 40, px.y + 40)
                             val hit = m.queryRenderedFeatures(box, "sawaari-riders").firstOrNull()?.getStringProperty("uid")
@@ -354,6 +360,7 @@ fun MapScreen(
                             hit != null || poi != null
                         }
                         m.addOnMapLongClickListener { ll ->
+                            focusManager.clearFocus()
                             if (!nav.navigating) { pressedLabel = null; pressedPoint = GeoPoint(ll.latitude, ll.longitude) }
                             true
                         }

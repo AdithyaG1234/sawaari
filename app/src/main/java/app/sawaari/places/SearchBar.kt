@@ -108,7 +108,8 @@ fun MapSearchBar(
                 }
             }
             if (loading) LinearProgressIndicator(Modifier.fillMaxWidth())
-            if (isLink) {
+            if (!focused) Unit
+            else if (isLink) {
                 HorizontalDivider()
                 ListItem(
                     headlineContent = { Text("Open this link as a route") },
