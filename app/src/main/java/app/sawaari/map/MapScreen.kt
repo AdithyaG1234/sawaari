@@ -335,6 +335,11 @@ fun MapScreen(
                             addOverlayLayers(s)
                             style = s
                         }
+                        // The compass (shown only when the map is turned away from north) sat under the
+                        // search bar; put it on the left, just below it. Tapping it turns the map back north.
+                        val dp = context.resources.displayMetrics.density
+                        m.uiSettings.compassGravity = android.view.Gravity.TOP or android.view.Gravity.START
+                        m.uiSettings.setCompassMargins((16 * dp).toInt(), (96 * dp).toInt(), 0, 0)
                         m.cameraPosition = CameraPosition.Builder()
                             .target(LatLng(MapConfig.DEFAULT_LAT, MapConfig.DEFAULT_LON))
                             .zoom(MapConfig.DEFAULT_ZOOM)
