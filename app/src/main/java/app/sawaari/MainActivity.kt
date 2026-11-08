@@ -43,6 +43,12 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.fillMaxHeight
 import app.sawaari.geo.GeoPoint
 import app.sawaari.group.GroupScreen
 import app.sawaari.map.MapScreen
@@ -118,6 +124,19 @@ class MainActivity : ComponentActivity() {
                     } else RideService.stop(applicationContext)
                 }
 
+                val pressSos: () -> Unit = {
+                    if (sosContacts.isEmpty() && group == null) {
+                        sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
+                        tab = 3
+                    } else {
+                        // Ask for SMS now, during the countdown, so the text can go out without a tap.
+                        if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) {
+                            smsPermission.launch(Manifest.permission.SEND_SMS)
+                        }
+                        sosCountdown = 5
+                    }
+                }
+
                 Scaffold(
                     bottomBar = {
                         NavigationBar {
@@ -134,13 +153,24 @@ class MainActivity : ComponentActivity() {
                                 icon = { Icon(Icons.Default.DownloadForOffline, null) }, label = { Text("Offline") },
                             )
                             NavigationBarItem(
-                                selected = tab == 3, onClick = { tab = 3 },
-                                icon = { Icon(Icons.Default.HealthAndSafety, null) }, label = { Text("SOS") },
-                            )
-                            NavigationBarItem(
                                 selected = tab == 4, onClick = { tab = 4 },
                                 icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") },
                             )
+                            // The emergency button lives in the bar, next to Settings, on every screen.
+                            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                                Surface(
+                                    onClick = pressSos,
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color(0xFFD32F2F),
+                                    contentColor = Color.White,
+                                    shadowElevation = 3.dp,
+                                    modifier = Modifier.size(width = 64.dp, height = 48.dp),
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                                    }
+                                }
+                            }
                         }
                     },
                 ) { padding ->
@@ -170,18 +200,6 @@ class MainActivity : ComponentActivity() {
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
-                            onSosPressed = {
-                                if (sosContacts.isEmpty() && group == null) {
-                                    sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
-                                    tab = 3
-                                } else {
-                                    // Ask for SMS now, during the countdown, so the text can go out without a tap.
-                                    if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) {
-                                        smsPermission.launch(Manifest.permission.SEND_SMS)
-                                    }
-                                    sosCountdown = 5
-                                }
-                            },
                         )
                         if (tab == 4) Surface(Modifier.fillMaxSize()) {
                             SettingsScreen(
@@ -189,9 +207,12 @@ class MainActivity : ComponentActivity() {
                                 onPalette = { ThemeSettings.setPalette(applicationContext, it) },
                                 onMode = { ThemeSettings.setMode(applicationContext, it) },
                                 onTourGuide = { showTour = true },
+                                onSosSetup = { tab = 3 },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
+                        // SOS setup opens from Settings, so Back returns there.
+                        androidx.activity.compose.BackHandler(enabled = tab == 3) { tab = 4 }
                         if (tab == 3) Surface(Modifier.fillMaxSize()) {
                             SosScreen(sosSettings, Modifier.fillMaxSize())
                         }

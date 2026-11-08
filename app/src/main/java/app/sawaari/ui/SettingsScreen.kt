@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -31,6 +32,7 @@ fun SettingsScreen(
     onPalette: (AppPalette) -> Unit,
     onMode: (DarkMode) -> Unit,
     onTourGuide: () -> Unit,
+    onSosSetup: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -38,6 +40,15 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Emergency SOS", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Emergency contacts, medical info and SMS permission for the red SOS button.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(onClick = onSosSetup, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.HealthAndSafety, null); Spacer(Modifier.width(8.dp)); Text("Set up SOS contacts")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)
         ThemeOptions(palette, mode, onPalette, onMode)
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
