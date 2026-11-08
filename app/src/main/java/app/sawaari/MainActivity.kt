@@ -48,7 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.height
 import app.sawaari.geo.GeoPoint
 import app.sawaari.group.GroupScreen
 import app.sawaari.map.MapScreen
@@ -157,7 +157,7 @@ class MainActivity : ComponentActivity() {
                                 icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") },
                             )
                             // The emergency button lives in the bar, next to Settings, on every screen.
-                            Box(Modifier.weight(1f).fillMaxHeight(), contentAlignment = Alignment.Center) {
+                            Box(Modifier.weight(1f).height(80.dp), contentAlignment = Alignment.Center) {
                                 Surface(
                                     onClick = pressSos,
                                     shape = RoundedCornerShape(16.dp),
