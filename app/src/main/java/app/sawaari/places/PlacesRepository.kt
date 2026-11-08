@@ -111,6 +111,11 @@ class PlacesRepository(private val context: Context) {
         if (!googleEnabled) return@withContext null
         val cached = googlePrefs.getString(place.id, null)?.let { runCatching { JSONObject(it) }.getOrNull() }
         if (cached != null && System.currentTimeMillis() - cached.optLong("t") < CACHE_MS) return@withContext parseGoogle(cached)
+        // Hard daily cap per phone, so a busy ride can never run up a Google bill.
+        val today = java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(java.util.Date())
+        val used = if (googlePrefs.getString("day", "") == today) googlePrefs.getInt("count", 0) else 0
+        if (used >= DAILY_GOOGLE_LOOKUPS) return@withContext null
+        googlePrefs.edit().putString("day", today).putInt("count", used + 1).apply()
         runCatching {
             val body = JSONObject()
                 .put("textQuery", place.name.ifBlank { place.category.fallbackName })
@@ -160,5 +165,6 @@ class PlacesRepository(private val context: Context) {
 
     companion object {
         private const val CACHE_MS = 30L * 24 * 60 * 60_000
+        const val DAILY_GOOGLE_LOOKUPS = 30
     }
 }
