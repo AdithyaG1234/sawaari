@@ -14,6 +14,9 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -69,12 +72,18 @@ fun MapSearchBar(
         searched = true
     }
 
-    Card(modifier.fillMaxWidth()) {
+    Card(
+        modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    ) {
         Column {
             TextField(
                 value = query,
                 onValueChange = { query = it },
-                placeholder = { Text("Search places, or paste a Google Maps link") },
+                placeholder = { Text("Search / Paste Google Maps link", maxLines = 1) },
                 leadingIcon = { Icon(Icons.Default.Search, null) },
                 trailingIcon = {
                     if (query.isNotEmpty()) IconButton(onClick = { query = ""; focus.clearFocus() }) { Icon(Icons.Default.Close, "Clear") }

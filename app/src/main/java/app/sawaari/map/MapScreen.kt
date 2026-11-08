@@ -16,6 +16,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.material.icons.filled.Map
+import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Directions
@@ -414,13 +419,6 @@ fun MapScreen(
             Modifier.align(Alignment.BottomCenter).fillMaxWidth().padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            // SOS sits at the bottom right, just above whatever card is showing, within thumb reach.
-            FloatingActionButton(
-                onClick = onSosPressed,
-                containerColor = Color(0xFFD32F2F),
-                contentColor = Color.White,
-                modifier = Modifier.align(Alignment.End).padding(bottom = 8.dp),
-            ) { Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleSmall) }
             SnackbarHost(snackbar)
             if (nav.route != null && places != null) {
                 PlacesPanel(
@@ -438,18 +436,7 @@ fun MapScreen(
                     nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
                     onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
                 )
-                else -> {
-                    Text(
-                        "Search above or long-press the map to plan a ride",
-                        style = MaterialTheme.typography.labelLarge,
-                        modifier = Modifier.padding(bottom = 8.dp),
-                    )
-                    ExtendedFloatingActionButton(
-                        onClick = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds },
-                        icon = { Icon(Icons.Default.Download, contentDescription = null) },
-                        text = { Text("Download this area") },
-                    )
-                }
+                else -> SaveAreaCard(onSave = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds })
             }
         }
     }
@@ -473,6 +460,10 @@ fun MapScreen(
                     if (onSetMeetingPoint != null) {
                         OutlinedButton(onClick = { meetAt = p; pressedPoint = null }, modifier = Modifier.fillMaxWidth()) { Text("Set meeting point for the group") }
                     }
+                    TextButton(
+                        onClick = { openInGoogleMaps(context, p, pressedLabel); pressedPoint = null },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Icon(Icons.Default.Map, null); Spacer(Modifier.width(8.dp)); Text("Open in Google Maps") }
                 }
             },
             confirmButton = { TextButton(onClick = { pressedPoint = null }) { Text("Cancel") } },
@@ -814,4 +805,57 @@ private fun openLinkSettings(context: android.content.Context) {
         android.content.Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg)
     else android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg)
     runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+}
+
+
+/** Opens a place in the Google Maps app (or the website when the app isn't installed). */
+private fun openInGoogleMaps(context: android.content.Context, p: GeoPoint, @Suppress("UNUSED_PARAMETER") name: String?) {
+    val q = "%.6f,%.6f".format(java.util.Locale.US, p.lat, p.lon)
+    // Coordinates find the exact spot; the name alone can match a different branch or town.
+    val url = "https://www.google.com/maps/search/?api=1&query=" + android.net.Uri.encode(q)
+    val app = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url)).setPackage("com.google.android.apps.maps")
+    val web = android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(url))
+    runCatching { context.startActivity(app) }.onFailure { runCatching { context.startActivity(web) } }
+}
+
+/** Idle-state card: how to plan a ride, and saving the visible map for riding without signal. */
+@Composable
+private fun SaveAreaCard(onSave: () -> Unit) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            shape = RoundedCornerShape(50),
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+            shadowElevation = 2.dp,
+        ) {
+            Text(
+                "Search or long-press the map to plan a ride",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+            )
+        }
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    Modifier.size(44.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer),
+                    contentAlignment = Alignment.Center,
+                ) { Icon(Icons.Default.CloudDownload, null, tint = MaterialTheme.colorScheme.onPrimaryContainer) }
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Save this map offline", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                    Text(
+                        "Keeps the area on screen on your phone, so the map still shows where there's no signal. Best on Wi-Fi.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Button(onClick = onSave) { Text("Save") }
+            }
+        }
+    }
 }
