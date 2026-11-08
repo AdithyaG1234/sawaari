@@ -72,7 +72,7 @@ object TourGuide {
         TourStep(
             Icons.Default.DownloadForOffline, "1. Save maps before you ride",
             listOf(
-                "Open the Offline tab and download the area you will ride in, or pan the map there and tap Save on the \"Save this map offline\" card.",
+                "Open the Offline tab and download the area you will ride in, or pan the map there and tap \"Save this map for offline use\".",
                 "Also download \"Offline navigation\" for that area so routes work with no signal.",
                 "Do this on Wi-Fi at home. The maps stay on the phone.",
             ),
