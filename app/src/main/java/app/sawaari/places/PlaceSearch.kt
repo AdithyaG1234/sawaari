@@ -2,6 +2,7 @@ package app.sawaari.places
 
 import app.sawaari.geo.GeoPoint
 import app.sawaari.geo.distanceMeters
+import app.sawaari.share.RouteLinks
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -21,6 +22,8 @@ class PlaceSearch(private val places: PlacesRepository) {
     suspend fun search(query: String, near: GeoPoint?): List<SearchResult> {
         val q = query.trim()
         if (q.length < 2) return emptyList()
+        // Coordinates copied from Google Maps (long-press a spot, tap the numbers): go straight there.
+        RouteLinks.latLon(q)?.let { return listOf(SearchResult("Dropped pin", RouteLinks.fmt(it).replace(",", ", ") + " · coordinates", it, online = false)) }
         val offline = near?.let { offline(q, it) }.orEmpty()
         val online = runCatching { photon(q, near) }.getOrDefault(emptyList())
         // Online results first (better names and coverage), then offline ones not already listed.

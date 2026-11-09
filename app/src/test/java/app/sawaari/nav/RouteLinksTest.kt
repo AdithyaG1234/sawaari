@@ -71,4 +71,37 @@ class RouteLinksTest {
         assertNull(RouteLinks.parse("https://example.com/hello"))
         assertNotNull(RouteLinks.latLon("12.97, +77.59"))
     }
+
+    private fun near(a: GeoPoint?, lat: Double, lon: Double) {
+        assertNotNull(a)
+        assertEquals(lat, a!!.lat, 1e-4)
+        assertEquals(lon, a.lon, 1e-4)
+    }
+
+    @Test fun readsCoordinatesCopiedFromGoogleMaps() {
+        near(RouteLinks.latLon("13.316123, 76.942612"), 13.316123, 76.942612)
+        near(RouteLinks.latLon("13°18'58.0\"N 76°56'33.4\"E"), 13.316111, 76.942611)
+        near(RouteLinks.latLon("13.3161° N, 76.9426° E"), 13.3161, 76.9426)
+        near(RouteLinks.latLon("33°51'54.5\"S 151°12'35.6\"E"), -33.865139, 151.209889)
+        assertNull(RouteLinks.latLon("Hotel 5 N Road"))
+        assertNull(RouteLinks.latLon("Gubbi"))
+    }
+
+    @Test fun googleDirectionsFromYourLocation() {
+        val r = RouteLinks.parse("https://www.google.com/maps/dir/Your+location/13.316123,76.942612/")!!
+        assertEquals(2, r.points.size)
+        assertNull(r.points[0].point)
+        assertEquals("", r.points[0].name)
+        near(r.points[1].point, 13.316123, 76.942612)
+    }
+
+    @Test fun googleMapViewLink() {
+        val r = RouteLinks.parse("https://www.google.com/maps/@13.316123,76.942612,15z")!!
+        near(r.points.last().point, 13.316123, 76.942612)
+    }
+
+    @Test fun googlePlaceWithDmsName() {
+        val r = RouteLinks.parse("https://www.google.com/maps/place/13%C2%B018'58.0%22N+76%C2%B056'33.4%22E/@13.3161,76.9426,17z")!!
+        near(r.points.last().point, 13.3161, 76.9426)
+    }
 }

@@ -21,6 +21,9 @@ object RouteLinks {
 
     private val LAT_LON = Regex("""^\s*(-?\d{1,2}(?:\.\d+)?)\s*,\s*\+?(-?\d{1,3}(?:\.\d+)?)\s*$""")
     private val URL_IN_TEXT = Regex("""https?://\S+""")
+    // One coordinate with a hemisphere letter: 13°18'58.0"N, 13.3161° N, 76 56 33.4 E ...
+    private val HEMI = Regex("""(\d{1,3}(?:\.\d+)?)\s*°?\s*(?:(\d{1,2}(?:\.\d+)?)\s*['′’]\s*)?(?:(\d{1,2}(?:\.\d+)?)\s*(?:"|″|”|''|′′)\s*)?([NSEW])\b""", RegexOption.IGNORE_CASE)
+    private val MY_LOCATION = Regex("""^(your|my|current) location$""", RegexOption.IGNORE_CASE)
 
     fun fmt(p: GeoPoint) = "%.5f,%.5f".format(Locale.US, p.lat, p.lon)
 
@@ -97,12 +100,14 @@ object RouteLinks {
             val pts = raw.map { seg ->
                 val name = seg.replace('+', ' ').trim()
                 when {
-                    name.isEmpty() -> LinkPoint(null)
+                    name.isEmpty() || MY_LOCATION.matches(name) -> LinkPoint(null)
                     latLon(name) != null -> LinkPoint(latLon(name))
                     else -> LinkPoint(if (coords.hasNext()) coords.next() else null, name.substringBefore(','))
                 }
             }
-            return LinkRoute(pts)
+            // "Your location" only makes sense as the start; anywhere else there is nothing to go to.
+            val kept = pts.filterIndexed { i, lp -> i == 0 || lp.point != null || lp.name.isNotEmpty() }
+            return if (kept.size < 2) null else LinkRoute(kept)
         }
         // A single place: /maps/place/Name/@lat,lon/data=...!3d<lat>!4d<lon>, or ?q=lat,lon / ?q=name
         val placeAt = segs.indexOf("place")
@@ -120,11 +125,46 @@ object RouteLinks {
             val v = qv.replace('+', ' ')
             return LinkRoute(listOf(LinkPoint(null), LinkPoint(latLon(v), if (latLon(v) == null) v else "")))
         }
+        // Just a map view: /maps/@lat,lon,15z
+        segs.firstOrNull { it.startsWith("@") }?.drop(1)?.split(',')?.let { p ->
+            val lat = p.getOrNull(0)?.toDoubleOrNull(); val lon = p.getOrNull(1)?.toDoubleOrNull()
+            if (lat != null && lon != null && lat in -90.0..90.0 && lon in -180.0..180.0)
+                return LinkRoute(listOf(LinkPoint(null), LinkPoint(GeoPoint(lat, lon))))
+        }
         return null
     }
 
-    fun latLon(s: String): GeoPoint? {
-        val m = LAT_LON.find(s.replace('+', ' ')) ?: return null
+    /**
+     * Coordinates typed or copied from Google Maps: "13.316123, 76.942612" or
+     * 13°18'58.0"N 76°56'33.4"E (also "13.3161° N, 76.9426° E"). Null if the text is anything else.
+     */
+    fun latLon(s: String): GeoPoint? = decimal(s) ?: hemispheres(s)
+
+    private fun hemispheres(s: String): GeoPoint? {
+        val t = s.replace('+', ' ').trim()
+        val ms = HEMI.findAll(t).toList()
+        if (ms.size != 2) return null
+        // Nothing else allowed besides separators, so "Hotel 5 N Road" isn't read as a coordinate.
+        if (HEMI.replace(t, "").any { !it.isWhitespace() && it != ',' && it != ';' }) return null
+        var lat: Double? = null
+        var lon: Double? = null
+        for (m in ms) {
+            val (d, mi, se, h) = m.destructured
+            val v = d.toDouble() + (mi.toDoubleOrNull() ?: 0.0) / 60 + (se.toDoubleOrNull() ?: 0.0) / 3600
+            when (h.uppercase()) {
+                "N" -> lat = v
+                "S" -> lat = -v
+                "E" -> lon = v
+                "W" -> lon = -v
+            }
+        }
+        val la = lat ?: return null
+        val lo = lon ?: return null
+        return if (la in -90.0..90.0 && lo in -180.0..180.0) GeoPoint(la, lo) else null
+    }
+
+    private fun decimal(s: String): GeoPoint? {
+        val m = LAT_LON.find(s.replace('+', ' ').replace("°", "")) ?: return null
         val lat = m.groupValues[1].toDouble()
         val lon = m.groupValues[2].toDouble()
         return if (lat in -90.0..90.0 && lon in -180.0..180.0) GeoPoint(lat, lon) else null
