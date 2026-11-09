@@ -29,3 +29,15 @@ val routingPacks = listOf(
     RoutingPack("mumbai-pune-goa", "Mumbai, Pune, Lonavala & Goa", 72.7, 14.7, 74.6, 19.4),
     RoutingPack("himachal-ladakh", "Manali, Spiti & Leh", 76.5, 31.0, 78.8, 34.6),
 )
+
+/**
+ * When no single pack covers every point of a trip, finds the pack that covers the most of them
+ * and returns it with the indexes of the points that fall outside it. Null when one pack covers all,
+ * or when none covers any point.
+ */
+fun pointsOutsidePacks(points: List<app.sawaari.geo.GeoPoint>, packs: List<RoutingPack> = routingPacks): Pair<RoutingPack, List<Int>>? {
+    if (packs.any { pack -> points.all { pack.contains(it.lat, it.lon) } }) return null
+    val best = packs.maxByOrNull { pack -> points.count { pack.contains(it.lat, it.lon) } } ?: return null
+    if (points.none { best.contains(it.lat, it.lon) }) return null
+    return best to points.indices.filter { !best.contains(points[it].lat, points[it].lon) }
+}
