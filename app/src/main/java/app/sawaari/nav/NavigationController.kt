@@ -95,6 +95,18 @@ class NavigationController(
     fun planRoute() {
         if (plan.end == null) { message = "Long-press the map and choose End here to set the destination."; return }
         val points = plan.waypoints(myPosition) ?: run { message = "Waiting for your GPS location…"; return }
+        app.sawaari.routing.pointsOutsidePacks(points)?.let { (pack, outside) ->
+            // Name the exact point that's out of range, so the rider can fix or remove it.
+            val names = outside.map { i ->
+                val role = when (i) { 0 -> "Start"; points.lastIndex -> "Destination"; else -> "Stop $i" }
+                val label = labelFor(points[i])?.let { " ($it)" } ?: ""
+                val km = app.sawaari.nav.formatDistance(app.sawaari.geo.distanceMeters(points.first(), points[i]))
+                "$role$label is $km from the start"
+            }
+            message = names.joinToString("; ") +
+                ", outside the ${pack.name} area for offline navigation. Remove it, or search again and pick the nearby result."
+            return
+        }
         busy = true
         scope.launch {
             try {

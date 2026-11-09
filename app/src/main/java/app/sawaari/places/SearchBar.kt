@@ -122,7 +122,12 @@ fun MapSearchBar(
                     items(results) { r ->
                         ListItem(
                             headlineContent = { Text(r.name) },
-                            supportingContent = { if (r.detail.isNotBlank()) Text(r.detail) },
+                            supportingContent = {
+                                // Show how far each result is, so a same-named place in another town stands out.
+                                val away = near()?.let { app.sawaari.nav.formatDistance(app.sawaari.geo.distanceMeters(it, r.point)) + " away" }
+                                val line = listOfNotNull(r.detail.ifBlank { null }, away).joinToString(" · ")
+                                if (line.isNotBlank()) Text(line)
+                            },
                             modifier = Modifier.clickable { onPick(r); query = ""; results = emptyList(); focus.clearFocus() },
                         )
                     }
