@@ -29,7 +29,23 @@ class PlaceSearch(private val places: PlacesRepository) {
         // Online results first (better names and coverage), then offline ones not already listed.
         val merged = online.toMutableList()
         offline.forEach { o -> if (merged.none { it.name.equals(o.name, true) && distanceMeters(it.point, o.point) < 2_000 }) merged += o }
-        return merged.take(15)
+        return rank(merged, near).take(15)
+    }
+
+    companion object {
+        /** Places closer than this count as "nearby" and always come first. */
+        const val NEARBY_METERS = 50_000.0
+
+        /**
+         * Nearby results first (keeping the search's own order among them), then far ones nearest
+         * first. Stops a same-named temple 300 km away from beating the one down the road.
+         */
+        fun rank(results: List<SearchResult>, near: GeoPoint?): List<SearchResult> {
+            if (near == null) return results
+            return results.sortedWith(compareBy({ distanceMeters(near, it.point) > NEARBY_METERS }, { d(near, it) }))
+        }
+
+        private fun d(near: GeoPoint, r: SearchResult): Double = distanceMeters(near, r.point).let { if (it > NEARBY_METERS) it else 0.0 }
     }
 
     private suspend fun offline(q: String, near: GeoPoint): List<SearchResult> = withContext(Dispatchers.Default) {
@@ -48,7 +64,7 @@ class PlaceSearch(private val places: PlacesRepository) {
     }
 
     private suspend fun photon(q: String, near: GeoPoint?): List<SearchResult> = withContext(Dispatchers.IO) {
-        val url = StringBuilder("https://photon.komoot.io/api/?limit=8&lang=en&q=").append(URLEncoder.encode(q, "UTF-8"))
+        val url = StringBuilder("https://photon.komoot.io/api/?limit=15&lang=en&q=").append(URLEncoder.encode(q, "UTF-8"))
         near?.let { url.append("&lat=").append(it.lat).append("&lon=").append(it.lon) }
         val conn = (URL(url.toString()).openConnection() as HttpURLConnection).apply {
             connectTimeout = 6_000; readTimeout = 8_000
