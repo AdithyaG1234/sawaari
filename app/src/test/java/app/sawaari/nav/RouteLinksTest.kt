@@ -104,4 +104,17 @@ class RouteLinksTest {
         val r = RouteLinks.parse("https://www.google.com/maps/place/13%C2%B018'58.0%22N+76%C2%B056'33.4%22E/@13.3161,76.9426,17z")!!
         near(r.points.last().point, 13.3161, 76.9426)
     }
+
+    @Test fun googleDirectionsSharedFromTheApp() {
+        // Expanded from a maps.app.goo.gl link shared in Gubbi: stops carry !3d<lat>!4d<lon>.
+        val url = "https://www.google.com/maps/dir/13.3161764,76.9428056/Sri+Channabasaveshwara+Swami+Temple/Gubbi+Railway+Station/13.3161764,76.9428056/data=!4m20!4m19!1m1!4e1!1m5!1m4!1s0x3bb024166aaaaaab:0x8075b1ad4be86d30!8m2!3d13.306277999999999!4d76.947754!1m5!1m4!1s0x3bb0246af8a2c265:0x36a56aa476a15295!8m2!3d13.3214103!4d76.9390016!1m1!4e1!2m1!11b1!3e0?g_st=ac&skid=221fd688-0dec-4519-840e-f514eb3dcbfd"
+        val r = RouteLinks.parse(url)!!
+        assertEquals(4, r.points.size)
+        near(r.points[0].point, 13.3161764, 76.9428056)
+        near(r.points[1].point, 13.306278, 76.947754)
+        assertEquals("Sri Channabasaveshwara Swami Temple", r.points[1].name)
+        near(r.points[2].point, 13.3214103, 76.9390016)
+        assertEquals("Gubbi Railway Station", r.points[2].name)
+        near(r.points[3].point, 13.3161764, 76.9428056)
+    }
 }

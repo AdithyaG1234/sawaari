@@ -16,8 +16,8 @@ android {
         applicationId = "app.sawaari"
         minSdk = 26
         targetSdk = 35
-        versionCode = 23
-        versionName = "1.3.7"
+        versionCode = 24
+        versionName = "1.3.8"
         // Google Places key for ratings: from the PLACES_API_KEY environment variable (a GitHub secret in CI)
         // or local.properties. Without it the app just shows rider ratings.
         val placesKey = System.getenv("PLACES_API_KEY")
