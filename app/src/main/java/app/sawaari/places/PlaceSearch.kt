@@ -86,6 +86,9 @@ class PlaceSearch(private val places: PlacesRepository) {
         }
     }
 
-    /** Coordinates for a place name from a shared link. Online only. */
-    suspend fun geocode(name: String, near: GeoPoint?): GeoPoint? = runCatching { photon(name, near).firstOrNull()?.point }.getOrNull()
+    /**
+     * Coordinates for a place name from a shared link: the same lookup as the search box (places on
+     * this phone and online), nearest matches first, so a same-named place far away isn't picked.
+     */
+    suspend fun geocode(name: String, near: GeoPoint?): GeoPoint? = runCatching { search(name, near).firstOrNull()?.point }.getOrNull()
 }

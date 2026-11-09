@@ -22,12 +22,15 @@ class RouteImporter(private val search: PlaceSearch) {
         if (RouteLinks.isShortGoogleLink(url)) url = expand(url) ?: throw RouteImportException("Couldn't open the Google Maps link. Check your internet.")
         val route = RouteLinks.parse(url) ?: throw RouteImportException("That link isn't a route or a place.")
 
+        // Look names up around the places the link does give coordinates for (else around the rider),
+        // so "Sri Channabasaveshwara Swami Temple" means the one on this route, not one 300 km away.
+        val anchor = route.points.firstNotNullOfOrNull { it.point } ?: near
         var skipped = 0
         val resolved = route.points.mapIndexed { i, lp ->
             when {
                 lp.point != null -> lp.point to lp.name
                 lp.name.isBlank() && i == 0 -> null to "" // start from my location
-                else -> search.geocode(lp.name, near)?.let { it to lp.name } ?: run { skipped++; null to "" }
+                else -> search.geocode(lp.name, anchor)?.let { it to lp.name } ?: run { skipped++; null to "" }
             }
         }
         val points = resolved.mapNotNull { it.first }
