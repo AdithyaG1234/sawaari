@@ -95,8 +95,13 @@ object RouteLinks {
         if (dirAt >= 0) {
             val raw = segs.drop(dirAt + 1).takeWhile { !it.startsWith("@") && !it.startsWith("data=") }
             if (raw.size < 2) return null
-            val coords = Regex("""!1d(-?\d+\.\d+)!2d(-?\d+\.\d+)""").findAll(data)
-                .map { GeoPoint(it.groupValues[2].toDouble(), it.groupValues[1].toDouble()) }.iterator()
+            // Each named stop's coordinates, in order. Older links write !1d<lon>!2d<lat>, newer ones
+            // (from the app's Share button) !3d<lat>!4d<lon>.
+            val coords = Regex("""!1d(-?\d+\.\d+)!2d(-?\d+\.\d+)|!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)""").findAll(data)
+                .map { m ->
+                    val g = m.groupValues
+                    if (g[1].isNotEmpty()) GeoPoint(g[2].toDouble(), g[1].toDouble()) else GeoPoint(g[3].toDouble(), g[4].toDouble())
+                }.iterator()
             val pts = raw.map { seg ->
                 val name = seg.replace('+', ' ').trim()
                 when {
