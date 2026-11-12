@@ -36,6 +36,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import app.sawaari.garage.Garage
 import app.sawaari.nav.formatDistance
 import app.sawaari.nav.formatDuration
 import java.text.SimpleDateFormat
@@ -110,6 +111,7 @@ private fun RideCard(r: SavedRide, onDelete: () -> Unit) {
                 Text(SimpleDateFormat("EEE d MMM yyyy, h:mm a", Locale.ENGLISH).format(Date(r.id)), style = MaterialTheme.typography.bodySmall)
                 Text("${formatDistance(s.distanceMeters)} · ${formatDuration(s.movingMillis)} riding · ${formatDuration(s.totalMillis)} total", style = MaterialTheme.typography.bodyMedium)
                 Text("Average ${s.avgMovingKmh.toInt()} km/h · Top ${s.topKmh.toInt()} km/h", style = MaterialTheme.typography.bodySmall)
+                Garage.state.value.bikes.firstOrNull { it.id == r.bikeId }?.let { Text("On ${it.name}", style = MaterialTheme.typography.bodySmall) }
             }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete ride") }
         }

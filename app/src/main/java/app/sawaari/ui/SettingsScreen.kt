@@ -13,6 +13,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.runtime.remember
+import app.sawaari.garage.GarageReminders
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -35,6 +38,7 @@ fun SettingsScreen(
     onTourGuide: () -> Unit,
     onSosSetup: () -> Unit,
     onRideHistory: () -> Unit,
+    onGarage: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -55,6 +59,17 @@ fun SettingsScreen(
         Text("Distance, riding time and speeds for every ride, kept on this phone.", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = onRideHistory, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.Timeline, null); Spacer(Modifier.width(8.dp)); Text("Ride history and stats")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("Your garage", style = MaterialTheme.typography.titleMedium)
+        val due = remember(Unit) { GarageReminders.all().size }
+        Text(
+            if (due > 0) "$due job${if (due == 1) "" else "s"} need attention." else "Your bikes, service reminders and insurance and PUC expiry dates.",
+            style = MaterialTheme.typography.bodySmall,
+            color = if (due > 0) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
+        )
+        OutlinedButton(onClick = onGarage, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Bikes and service")
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)

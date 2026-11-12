@@ -31,6 +31,8 @@ import app.sawaari.sos.SosPermissions
 import app.sawaari.sos.SosSettings
 import app.sawaari.ride.RideRecorder
 import app.sawaari.ride.RideHistoryScreen
+import app.sawaari.garage.GarageReminders
+import app.sawaari.garage.GarageScreen
 import app.sawaari.sos.CrashWatch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
@@ -67,6 +69,8 @@ import app.sawaari.tour.TourGuideDialog
 class MainActivity : ComponentActivity() {
     /** A route link that opened the app (Sawaari or Google Maps link, or text shared to Sawaari). */
     private val incomingLink = mutableStateOf<String?>(null)
+    /** Set when a bike service reminder was tapped. */
+    private val openGarage = mutableStateOf(false)
 
     private fun linkFrom(intent: Intent?): String? = when (intent?.action) {
         Intent.ACTION_VIEW -> intent.dataString
@@ -77,11 +81,19 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         linkFrom(intent)?.let { incomingLink.value = it }
+        if (intent.getBooleanExtra(EXTRA_OPEN_GARAGE, false)) openGarage.value = true
+    }
+
+    companion object {
+        const val EXTRA_OPEN_GARAGE = "open_garage"
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        if (savedInstanceState == null) incomingLink.value = linkFrom(intent)
+        if (savedInstanceState == null) {
+            incomingLink.value = linkFrom(intent)
+            if (intent?.getBooleanExtra(EXTRA_OPEN_GARAGE, false) == true) openGarage.value = true
+        }
         enableEdgeToEdge()
         ThemeSettings.load(applicationContext)
         setContent {
@@ -119,6 +131,8 @@ class MainActivity : ComponentActivity() {
                 val sosPrefs = remember { applicationContext.getSharedPreferences("sos", MODE_PRIVATE) }
                 var askSosSetup by remember { mutableStateOf(!sosPrefs.getBoolean("setup_prompted", false)) }
                 LaunchedEffect(incomingLink.value) { if (incomingLink.value != null) tab = 0 }
+                LaunchedEffect(openGarage.value) { if (openGarage.value) { tab = 6; openGarage.value = false } }
+                LaunchedEffect(Unit) { GarageReminders.check(applicationContext) }
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
                 val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
@@ -220,8 +234,13 @@ class MainActivity : ComponentActivity() {
                                 onTourGuide = { showTour = true },
                                 onSosSetup = { tab = 3 },
                                 onRideHistory = { tab = 5 },
+                                onGarage = { tab = 6 },
                                 modifier = Modifier.fillMaxSize(),
                             )
+                        }
+                        androidx.activity.compose.BackHandler(enabled = tab == 6) { tab = 4 }
+                        if (tab == 6) Surface(Modifier.fillMaxSize()) {
+                            GarageScreen(Modifier.fillMaxSize())
                         }
                         androidx.activity.compose.BackHandler(enabled = tab == 5) { tab = 4 }
                         if (tab == 5) Surface(Modifier.fillMaxSize()) {
