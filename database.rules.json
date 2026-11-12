@@ -10,7 +10,7 @@
         "members": {
           "$uid": {
             ".write": "auth != null && root.child('groups').child($code).child('meta').exists() && ($uid === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid || newData.parent().parent().child('meta').child('leader').val() === auth.uid)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['name', 'role']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('role').val().matches(/^(leader|sweep|rider)$/) && (newData.child('role').val() !== 'leader' || newData.parent().parent().child('meta').child('leader').val() === $uid))",
+            ".validate": "!newData.exists() || (newData.hasChildren(['name', 'role']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('role').val().matches(/^(leader|sweep|rider|marshal|medic)$/) && (newData.child('role').val() !== 'leader' || newData.parent().parent().child('meta').child('leader').val() === $uid))",
             "breakAt": {
               ".validate": "newData.isNumber() && newData.val() <= now + 60000"
             },
@@ -50,6 +50,25 @@
         "meet": {
           ".write": "auth != null && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid",
           ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber() && (!newData.child('note').exists() || (newData.child('note').isString() && newData.child('note').val().length <= 120)))"
+        }
+      }
+    },
+    "chats": {
+      "$code": {
+        ".indexOn": ["ts"],
+        ".read": "auth != null && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+        "$id": {
+          ".write": "auth != null && !data.exists() && newData.child('uid').val() === auth.uid && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+          ".validate": "newData.hasChildren(['uid', 'name', 'ts']) && newData.child('ts').isNumber() && newData.child('name').isString() && newData.child('name').val().length <= 40 && (!newData.child('text').exists() || (newData.child('text').isString() && newData.child('text').val().length <= 500)) && (!newData.child('voiceMs').exists() || (newData.child('voiceMs').isNumber() && newData.child('voiceMs').val() <= 31000))"
+        }
+      }
+    },
+    "chatVoice": {
+      "$code": {
+        ".read": "auth != null && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+        "$id": {
+          ".write": "auth != null && !data.exists() && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+          ".validate": "newData.isString() && newData.val().length <= 125000"
         }
       }
     },
