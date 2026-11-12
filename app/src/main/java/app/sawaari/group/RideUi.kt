@@ -65,7 +65,7 @@ fun RiderDetailsDialog(rider: Rider, myPosition: GeoPoint?, onNavigate: (() -> U
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 val where = if (myPosition != null && rider.lat != null && rider.lon != null)
                     "${formatDistance(distanceMeters(myPosition, GeoPoint(rider.lat, rider.lon)))} away" else "Location not shared yet"
-                Text("${rider.role.replaceFirstChar { it.uppercase() }} · $where", style = MaterialTheme.typography.bodySmall)
+                Text("${Role.label(rider.role)} · $where", style = MaterialTheme.typography.bodySmall)
                 if (rider.phone.isNotBlank()) {
                     FilledTonalButton(onClick = { dial(context, rider.phone) }, modifier = Modifier.fillMaxWidth()) {
                         Icon(Icons.Default.Call, null); Spacer(Modifier.width(8.dp)); Text("Call ${rider.name}")

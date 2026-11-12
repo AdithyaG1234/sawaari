@@ -22,7 +22,29 @@ object Role {
     const val LEADER = "leader"
     const val SWEEP = "sweep"
     const val RIDER = "rider"
+    /** Rides mid-pack and keeps the group together (e.g. blocks junctions so nobody takes a wrong turn). */
+    const val MARSHAL = "marshal"
+    /** Carries the first-aid kit and goes first to anyone who falls. */
+    const val MEDIC = "medic"
+
+    /** Roles the leader can give out from the rider list (leader and sweep have their own buttons). */
+    val ASSIGNABLE = listOf(MARSHAL, MEDIC, RIDER)
+
+    fun label(role: String) = when (role) {
+        LEADER -> "Leader"; SWEEP -> "Sweep"; MARSHAL -> "Marshal"; MEDIC -> "Medic"; else -> "Rider"
+    }
 }
+
+/** A chat message in the group. A voice note's audio is loaded separately when played. */
+data class ChatMessage(
+    val id: String,
+    val uid: String,
+    val name: String,
+    val ts: Long,
+    val text: String = "",
+    /** Length of the voice note in ms, or 0 for a text message. */
+    val voiceMs: Long = 0L,
+)
 
 data class Rider(
     val uid: String,
@@ -139,6 +161,12 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
     private var listener: ValueEventListener? = null
     private var lastPublish = 0L
 
+    private val _chat = MutableStateFlow<List<ChatMessage>>(emptyList())
+    /** The last [CHAT_KEEP] chat messages of my group, oldest first. */
+    val chat: StateFlow<List<ChatMessage>> = _chat.asStateFlow()
+    private var chatRef: com.google.firebase.database.Query? = null
+    private var chatListener: ValueEventListener? = null
+
     init {
         val saved = prefs.getString(KEY_CODE, null)
         if (configured && saved != null) scope.launch { runCatching { signIn(); listen(saved) } }
@@ -215,6 +243,49 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         val updates = mutableMapOf<String, Any>("meta/leader" to me, "members/$me/role" to Role.LEADER)
         if (g.leader != null && g.leaderUid != me) updates["members/${g.leaderUid}/role"] = Role.RIDER
         db.getReference("groups/${g.code}").updateChildren(updates).await()
+    }
+
+    /** Leader only: make [uid] a marshal, medic or plain rider. */
+    fun setRole(uid: String, role: String) = action {
+        val g = _group.value ?: return@action
+        require(role in Role.ASSIGNABLE) { "That role can't be given here." }
+        db.getReference("groups/${g.code}/members/$uid/role").setValue(role).await()
+    }
+
+    /** Send a text (or quick) message to the group. */
+    fun sendText(text: String) = action {
+        val t = text.trim().take(500)
+        if (t.isEmpty()) return@action
+        newMessage(mapOf("text" to t))
+    }
+
+    /** Send a recorded voice note ([audio] is the recorded file's bytes, at most about 30 s). */
+    fun sendVoice(audio: ByteArray, durationMs: Long) = action {
+        val g = _group.value ?: return@action
+        require(audio.size <= VOICE_MAX_BYTES) { "That voice note is too long. Keep it under 30 seconds." }
+        val id = newMessage(mapOf("voiceMs" to durationMs.coerceAtMost(30_000L))) ?: return@action
+        db.getReference("chatVoice/${g.code}/$id").setValue(android.util.Base64.encodeToString(audio, android.util.Base64.NO_WRAP)).await()
+    }
+
+    /** The audio of a voice note, or null if it can't be loaded. */
+    suspend fun loadVoice(id: String): ByteArray? {
+        val code = _group.value?.code ?: return null
+        return runCatching {
+            val s = db.getReference("chatVoice/$code/$id").get().await().getValue(String::class.java) ?: return null
+            android.util.Base64.decode(s, android.util.Base64.NO_WRAP)
+        }.getOrNull()
+    }
+
+    private suspend fun newMessage(extra: Map<String, Any>): String? {
+        val code = _group.value?.code ?: return null
+        val uid = myUid ?: return null
+        val ref = db.getReference("chats/$code").push()
+        try {
+            ref.setValue(mapOf("uid" to uid, "name" to _myName.value.ifBlank { "Rider" }, "ts" to System.currentTimeMillis()) + extra).await()
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Couldn't send. Check your internet. If it keeps failing, the group server needs the latest rules (see README).")
+        }
+        return ref.key
     }
 
     /** Tell the group I'm stopping for a break (or that I'm riding again). */
@@ -376,12 +447,38 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         ref.addValueEventListener(l)
         listenerRef = ref
         listener = l
+
+        val cq = db.getReference("chats/$code").orderByChild("ts").limitToLast(CHAT_KEEP)
+        val cl = object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                _chat.value = snapshot.children.mapNotNull { m ->
+                    val uid = m.child("uid").getValue(String::class.java) ?: return@mapNotNull null
+                    ChatMessage(
+                        id = m.key ?: return@mapNotNull null,
+                        uid = uid,
+                        name = m.child("name").getValue(String::class.java).orEmpty().ifBlank { "Rider" },
+                        ts = m.child("ts").getValue(Long::class.java) ?: 0L,
+                        text = m.child("text").getValue(String::class.java).orEmpty(),
+                        voiceMs = m.child("voiceMs").getValue(Long::class.java) ?: 0L,
+                    )
+                }.sortedBy { it.ts }
+            }
+            // Older group servers without chat rules: chat just stays empty.
+            override fun onCancelled(error: DatabaseError) = Unit
+        }
+        cq.addValueEventListener(cl)
+        chatRef = cq
+        chatListener = cl
     }
 
     private fun stopListening() {
         listener?.let { listenerRef?.removeEventListener(it) }
         listener = null
         listenerRef = null
+        chatListener?.let { chatRef?.removeEventListener(it) }
+        chatListener = null
+        chatRef = null
+        _chat.value = emptyList()
     }
 
     private fun parse(code: String, s: DataSnapshot): RideGroup {
@@ -452,10 +549,12 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         }.sortedByDescending { it.ts }
     }
 
-    private fun roleOrder(role: String) = when (role) { Role.LEADER -> 0; Role.SWEEP -> 2; else -> 1 }
+    private fun roleOrder(role: String) = when (role) { Role.LEADER -> 0; Role.MARSHAL -> 1; Role.MEDIC -> 2; Role.SWEEP -> 4; else -> 3 }
 
     companion object {
         const val CODE_LENGTH = 6
+        const val CHAT_KEEP = 60
+        const val VOICE_MAX_BYTES = 90_000
         const val PUBLISH_INTERVAL_MS = 10_000L
         const val BREAK_END_KMH = 25f
         const val ALERT_WINDOW_MS = 3 * 60 * 60_000L

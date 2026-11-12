@@ -76,12 +76,23 @@ class RideService : Service() {
                 }
             }
             scope.launch {
+                // New chat messages from others while the app is in the background.
+                var since = System.currentTimeMillis()
+                groups.chat.collect { msgs ->
+                    msgs.filter { it.ts > since && it.uid != groups.myUid }.forEach { m ->
+                        notify(m.id.hashCode(), m.name, if (m.voiceMs > 0) "Voice note (${(m.voiceMs + 500) / 1000} s)" else m.text, urgent = false)
+                    }
+                    msgs.maxOfOrNull { it.ts }?.let { if (it > since) since = it }
+                }
+            }
+            scope.launch {
                 groups.alerts.collect { alerts ->
                     alerts.filter { it.id !in notifiedSos }.forEach { a ->
                         notifiedSos += a.id
                         val role = groups.group.value?.riders?.firstOrNull { it.uid == a.uid }?.role
                         val title = when (role) { Role.LEADER -> "SOS from leader ${a.name}"; Role.SWEEP -> "SOS from sweep ${a.name}"; else -> "SOS from ${a.name}" }
-                        val text = when (role) {
+                        val iAmMedic = groups.group.value?.riders?.firstOrNull { it.uid == groups.myUid }?.role == Role.MEDIC
+                        val text = if (iAmMedic) "You're the group's medic. Go to them with the first-aid kit." else when (role) {
                             Role.LEADER -> "Go to them. The sweep or any rider can take over as leader in the Group tab."
                             Role.SWEEP -> "Go to them. The leader can pick a new sweep in the Group tab."
                             else -> "Open Sawaari to see where they are and go to them."

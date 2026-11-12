@@ -17,6 +17,9 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AssistChip
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,6 +71,13 @@ fun GroupScreen(
     // Tick so "updated x min ago" stays fresh.
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(15_000); now = System.currentTimeMillis() } }
+
+    var showChat by remember { mutableStateOf(false) }
+    val chat by repo.chat.collectAsState()
+    if (showChat && group != null) {
+        ChatScreen(repo, onBack = { showChat = false }, modifier = modifier)
+        return
+    }
 
     LazyColumn(modifier, contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!repo.configured) {
@@ -170,6 +180,25 @@ fun GroupScreen(
         val iAmLeader = g.leaderUid == repo.myUid
         val meRider = g.riders.firstOrNull { it.uid == repo.myUid }
 
+        item {
+            val seen = remember(chat.size, showChat) { ChatSeen.last(context) }
+            val unread = chat.count { it.ts > seen && it.uid != repo.myUid }
+            val last = chat.lastOrNull()
+            Card(Modifier.fillMaxWidth().clickable { showChat = true }) {
+                Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(if (unread > 0) "Group chat · $unread new" else "Group chat", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            last?.let { "${it.name}: " + if (it.voiceMs > 0) "voice note" else it.text }
+                                ?: "Quick messages and voice notes for the whole group",
+                            style = MaterialTheme.typography.bodySmall, maxLines = 1,
+                        )
+                    }
+                    Button(onClick = { showChat = true }) { Text("Open") }
+                }
+            }
+        }
+
         // Leader can't lead (no signal, SOS, or gone): let someone take over.
         if (!iAmLeader && g.leaderInTrouble(now)) {
             item {
@@ -258,11 +287,20 @@ fun GroupScreen(
                 modifier = Modifier.clickable(enabled = !isMe) { selected = r },
                 headlineContent = { Text(if (isMe) "${r.name} (you)" else r.name) },
                 supportingContent = { Text(riderStatus(r, myPosition, now, isMe)) },
-                leadingContent = { AssistChip(onClick = {}, label = { Text(r.role.replaceFirstChar { it.uppercase() }) }) },
+                leadingContent = { AssistChip(onClick = {}, label = { Text(Role.label(r.role)) }) },
                 trailingContent = {
-                    if (iAmLeader && !isMe) Column(horizontalAlignment = Alignment.End) {
-                        if (r.role != Role.SWEEP) TextButton(onClick = { repo.makeSweep(r.uid) }) { Text("Make sweep") }
-                        TextButton(onClick = { repo.makeLeader(r.uid) }) { Text("Make leader") }
+                    if (iAmLeader && !isMe) {
+                        var menu by remember { mutableStateOf(false) }
+                        Box {
+                            TextButton(onClick = { menu = true }) { Text("Role") }
+                            DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                                DropdownMenuItem(text = { Text("Make leader") }, onClick = { menu = false; repo.makeLeader(r.uid) })
+                                if (r.role != Role.SWEEP) DropdownMenuItem(text = { Text("Make sweep (last rider)") }, onClick = { menu = false; repo.makeSweep(r.uid) })
+                                if (r.role != Role.MARSHAL) DropdownMenuItem(text = { Text("Make marshal (keeps the group together)") }, onClick = { menu = false; repo.setRole(r.uid, Role.MARSHAL) })
+                                if (r.role != Role.MEDIC) DropdownMenuItem(text = { Text("Make medic (first aid)") }, onClick = { menu = false; repo.setRole(r.uid, Role.MEDIC) })
+                                if (r.role != Role.RIDER) DropdownMenuItem(text = { Text("Make rider") }, onClick = { menu = false; repo.setRole(r.uid, Role.RIDER) })
+                            }
+                        }
                     }
                 },
             )
