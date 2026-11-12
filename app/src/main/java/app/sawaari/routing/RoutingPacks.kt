@@ -28,6 +28,15 @@ val routingPacks = listOf(
     RoutingPack("ooty-munnar", "Ooty, Kodaikanal, Munnar & Wayanad", 75.7, 9.8, 77.8, 12.0),
     RoutingPack("mumbai-pune-goa", "Mumbai, Pune, Lonavala & Goa", 72.7, 14.7, 74.6, 19.4),
     RoutingPack("himachal-ladakh", "Manali, Spiti & Leh", 76.5, 31.0, 78.8, 34.6),
+    RoutingPack("coastal-karnataka", "Mangaluru, Udupi, Gokarna & Agumbe", 74.0, 12.4, 75.4, 14.9),
+    RoutingPack("kerala-south", "Kochi, Alleppey, Varkala, Thekkady & Kanyakumari", 75.9, 7.9, 77.7, 10.3),
+    RoutingPack("chennai-pondy", "Chennai, Pondicherry, ECR & Yelagiri", 78.5, 11.4, 80.4, 13.4),
+    RoutingPack("hyderabad-srisailam", "Hyderabad, Srisailam & Ananthagiri", 77.6, 15.9, 79.3, 17.8),
+    RoutingPack("delhi-uttarakhand", "Delhi, Rishikesh, Mussoorie, Chopta & Kedarnath", 76.9, 28.4, 79.7, 31.1),
+    RoutingPack("rajasthan", "Jaipur, Pushkar, Jodhpur, Udaipur & Mount Abu", 72.6, 24.2, 76.4, 27.3),
+    RoutingPack("kashmir", "Srinagar, Gulmarg, Pahalgam, Sonamarg & Kargil", 74.0, 33.5, 76.4, 34.7),
+    RoutingPack("sikkim", "Gangtok, Nathula & North Sikkim", 88.0, 27.0, 88.95, 28.15),
+    RoutingPack("meghalaya", "Guwahati, Shillong, Cherrapunji & Dawki", 90.8, 25.0, 92.5, 26.3),
 )
 
 /**

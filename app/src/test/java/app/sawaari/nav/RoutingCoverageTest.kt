@@ -22,6 +22,6 @@ class RoutingCoverageTest {
     }
 
     @Test fun nothingCoveredGivesNull() {
-        assertNull(pointsOutsidePacks(listOf(GeoPoint(28.6, 77.2), GeoPoint(26.9, 75.8))))
+        assertNull(pointsOutsidePacks(listOf(GeoPoint(22.57, 88.36), GeoPoint(20.30, 85.82)))) // Kolkata, Bhubaneswar
     }
 }
