@@ -156,6 +156,10 @@ fun MapScreen(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val nav = remember { NavigationController(context, routing, scope) }
+    // Navigation counts as a ride for the history, titled with the destination.
+    LaunchedEffect(nav.navigating) {
+        app.sawaari.ride.RideRecorder.setActive("nav", nav.navigating, nav.plan.end?.let { nav.labelFor(it) })
+    }
     DisposableEffect(nav) { onDispose { nav.shutdown() } }
     nav.onReroute = onReroute
     LaunchedEffect(rideTo) {
