@@ -148,7 +148,7 @@ internal fun RouteCard(
                 )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Round trip (come back to the start)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                    Switch(checked = nav.isRoundTrip, onCheckedChange = { nav.setRoundTrip(it) })
+                    Switch(checked = nav.isRoundTrip, onCheckedChange = { nav.makeRoundTrip(it) })
                 }
                 Text(
                     if (r == null) "Search above or long-press the map to add stops. Routes are calculated on your phone, no signal needed."

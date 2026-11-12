@@ -64,7 +64,7 @@ class NavigationController(
     fun chooseDestination(p: GeoPoint) { roundTrip = false; updatePlan { it.copy(end = p) } }
 
     /** Come back to the start (or to where I am now, if the start is my location). */
-    fun setRoundTrip(on: Boolean) {
+    fun makeRoundTrip(on: Boolean) {
         if (!on) { if (isRoundTrip) { roundTrip = false; updatePlan { it.copy(end = null) } }; return }
         val home = plan.start ?: myPosition ?: run { message = "Waiting for your GPS location…"; return }
         updatePlan { it.copy(end = home) }
