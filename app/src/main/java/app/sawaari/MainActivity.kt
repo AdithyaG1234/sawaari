@@ -29,6 +29,8 @@ import app.sawaari.sos.SosScreen
 import app.sawaari.sos.SosSender
 import app.sawaari.sos.SosPermissions
 import app.sawaari.sos.SosSettings
+import app.sawaari.ride.RideRecorder
+import app.sawaari.ride.RideHistoryScreen
 import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -107,6 +109,8 @@ class MainActivity : ComponentActivity() {
                 // A route link opening the app on first launch goes straight to the route, not the tour.
                 LaunchedEffect(Unit) { if (incomingLink.value != null) { showTour = false; TourGuide.markSeen(applicationContext) } }
                 LaunchedEffect(Unit) { repo.refresh() }
+                // A group ride counts as a ride for the history, from joining until leaving.
+                LaunchedEffect(group?.code) { RideRecorder.setActive("group", group != null, group?.name) }
                 LaunchedEffect(incomingLink.value) { if (incomingLink.value != null) tab = 0 }
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
@@ -181,7 +185,7 @@ class MainActivity : ComponentActivity() {
                             onDownloadArea = { name, bounds -> repo.download(name, bounds); tab = 1 },
                             groupRiders = group?.riders.orEmpty(),
                             myUid = groups.myUid,
-                            onLocation = { lastLocation = it; groups.publish(it) },
+                            onLocation = { lastLocation = it; groups.publish(it); RideRecorder.onLocation(it) },
                             onPositionChanged = { myPosition = it },
                             sosAlerts = sosAlerts,
                             onDismissSos = groups::dismissAlert,
@@ -208,8 +212,13 @@ class MainActivity : ComponentActivity() {
                                 onMode = { ThemeSettings.setMode(applicationContext, it) },
                                 onTourGuide = { showTour = true },
                                 onSosSetup = { tab = 3 },
+                                onRideHistory = { tab = 5 },
                                 modifier = Modifier.fillMaxSize(),
                             )
+                        }
+                        androidx.activity.compose.BackHandler(enabled = tab == 5) { tab = 4 }
+                        if (tab == 5) Surface(Modifier.fillMaxSize()) {
+                            RideHistoryScreen(Modifier.fillMaxSize())
                         }
                         // SOS setup opens from Settings, so Back returns there.
                         androidx.activity.compose.BackHandler(enabled = tab == 3) { tab = 4 }

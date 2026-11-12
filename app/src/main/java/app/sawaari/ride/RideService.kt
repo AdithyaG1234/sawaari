@@ -60,6 +60,7 @@ class RideService : Service() {
                 locationUpdates(this@RideService, intervalMs = 5_000L).collect { loc ->
                     me = GeoPoint(loc.latitude, loc.longitude)
                     groups.publish(loc)
+                    RideRecorder.onLocation(loc)
                 }
             }
             scope.launch {

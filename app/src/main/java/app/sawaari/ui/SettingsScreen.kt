@@ -12,6 +12,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.HealthAndSafety
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -33,6 +34,7 @@ fun SettingsScreen(
     onMode: (DarkMode) -> Unit,
     onTourGuide: () -> Unit,
     onSosSetup: () -> Unit,
+    onRideHistory: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -47,6 +49,12 @@ fun SettingsScreen(
         )
         OutlinedButton(onClick = onSosSetup, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.HealthAndSafety, null); Spacer(Modifier.width(8.dp)); Text("Set up SOS contacts")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("Your rides", style = MaterialTheme.typography.titleMedium)
+        Text("Distance, riding time and speeds for every ride, kept on this phone.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onRideHistory, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Timeline, null); Spacer(Modifier.width(8.dp)); Text("Ride history and stats")
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)

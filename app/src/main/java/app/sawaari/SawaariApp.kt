@@ -25,5 +25,6 @@ class SawaariApp : Application() {
     override fun onCreate() {
         super.onCreate()
         MapLibre.getInstance(this)
+        app.sawaari.ride.RideRecorder.init(this)
     }
 }
