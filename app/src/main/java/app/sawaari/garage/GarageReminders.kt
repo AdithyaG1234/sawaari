@@ -31,7 +31,7 @@ object GarageReminders {
         state.bikes.flatMap { b ->
             val odo = Garage.odometer(b)
             b.items.map { i -> Reminder("${b.id}:${i.id}:${i.lastAt}", b.name, i.name, GarageLogic.status(i, odo, now)) } +
-                b.papers.map { (p, exp) -> Reminder("${b.id}:$p:$exp", b.name, p, GarageLogic.paperStatus(exp, now)) }
+                b.papers.filter { b.kind.hasPapers }.map { (p, exp) -> Reminder("${b.id}:$p:$exp", b.name, p, GarageLogic.paperStatus(exp, now)) }
         }.filter { it.status.level != Level.OK }
 
     fun check(context: Context) {
@@ -52,9 +52,9 @@ object GarageReminders {
         ) return false
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.getSystemService(NotificationManager::class.java)
-                .createNotificationChannel(NotificationChannel(CHANNEL, "Bike service reminders", NotificationManager.IMPORTANCE_DEFAULT))
+                .createNotificationChannel(NotificationChannel(CHANNEL, "Vehicle service reminders", NotificationManager.IMPORTANCE_DEFAULT))
         }
-        val title = if (items.size == 1) "${items[0].what}: ${items[0].status.text.lowercase()}" else "${items.size} bike jobs need attention"
+        val title = if (items.size == 1) "${items[0].what}: ${items[0].status.text.lowercase()}" else "${items.size} vehicle jobs need attention"
         val text = items.joinToString("\n") { "${it.bike}: ${it.what}, ${it.status.text.lowercase()}" }
         val open = PendingIntent.getActivity(
             context, 2, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)

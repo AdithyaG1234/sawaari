@@ -20,6 +20,9 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.DirectionsCar
+import androidx.compose.material.icons.automirrored.filled.DirectionsBike
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -74,14 +77,14 @@ fun GarageScreen(modifier: Modifier = Modifier) {
         item {
             Text("Your garage", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Service reminders and papers for your bikes, kept only on this phone. Rides you record add to the odometer of the bike you're riding.",
+                "Service reminders and papers for your motorcycles, cars and bicycles, kept only on this phone. Rides you record add to the odometer of the vehicle you're using.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
         if (bike == null) {
             item {
                 Button(onClick = { addBike = true }, modifier = Modifier.fillMaxWidth()) {
-                    Icon(Icons.Default.Add, null); Text("  Add your bike")
+                    Icon(Icons.Default.Add, null); Text("  Add your vehicle")
                 }
             }
             return@LazyColumn
@@ -89,23 +92,26 @@ fun GarageScreen(modifier: Modifier = Modifier) {
         item {
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(state.bikes, key = { it.id }) { b ->
-                    FilterChip(selected = b.id == bike.id, onClick = { shownId = b.id }, label = { Text(b.name) })
+                    FilterChip(selected = b.id == bike.id, onClick = { shownId = b.id }, label = { Text(b.name) }, leadingIcon = { Icon(kindIcon(b.kind), null) })
                 }
-                item { FilterChip(selected = false, onClick = { addBike = true }, label = { Text("+ Add bike") }) }
+                item { FilterChip(selected = false, onClick = { addBike = true }, label = { Text("+ Add vehicle") }) }
             }
         }
         item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(bike.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(kindIcon(bike.kind), null)
+                        Text("  ${bike.name}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                    }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("%,d km".format(Locale.ENGLISH, odo.toLong()), style = MaterialTheme.typography.headlineSmall, modifier = Modifier.weight(1f))
                         TextButton(onClick = { editOdo = true }) { Text("Update odometer") }
                     }
                     if (bike.id == state.current?.id) {
-                        Text("You're riding this bike. New rides add to its odometer.", style = MaterialTheme.typography.bodySmall)
+                        Text("You're using this ${bike.kind.label.lowercase()}. New rides add to its odometer.", style = MaterialTheme.typography.bodySmall)
                     } else {
-                        OutlinedButton(onClick = { Garage.ride(bike.id) }) { Text("Ride this bike") }
+                        OutlinedButton(onClick = { Garage.ride(bike.id) }) { Text("Use this ${bike.kind.label.lowercase()}") }
                     }
                 }
             }
@@ -128,8 +134,8 @@ fun GarageScreen(modifier: Modifier = Modifier) {
                 Icon(Icons.Default.Add, null); Text(" Add a service job")
             }
         }
-        item { Text("Papers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
-        items(Papers.ALL, key = { "paper-$it" }) { paper ->
+        if (bike.kind.hasPapers) item { Text("Papers", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp)) }
+        items(if (bike.kind.hasPapers) Papers.ALL else emptyList(), key = { "paper-$it" }) { paper ->
             val exp = bike.papers[paper]
             val st = exp?.let { GarageLogic.paperStatus(it, now) }
             StatusRow(
@@ -148,8 +154,8 @@ fun GarageScreen(modifier: Modifier = Modifier) {
 
     if (addBike) BikeDialog(
         onDismiss = { addBike = false },
-        onSave = { name, km ->
-            Garage.addBike(name, km); addBike = false; shownId = 0L
+        onSave = { name, km, kind ->
+            Garage.addBike(name, km, kind); addBike = false; shownId = 0L
             if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
         },
     )
@@ -206,20 +212,33 @@ private fun every(i: ServiceItem): String {
 
 private fun months(days: Int) = if (days % 30 == 0 && days >= 30) "${days / 30} month${if (days == 30) "" else "s"}" else "$days days"
 
+private fun kindIcon(k: VehicleKind) = when (k) {
+    VehicleKind.MOTORCYCLE -> Icons.Default.TwoWheeler
+    VehicleKind.CAR -> Icons.Default.DirectionsCar
+    VehicleKind.BICYCLE -> Icons.AutoMirrored.Filled.DirectionsBike
+}
+
 private fun date(ms: Long) = SimpleDateFormat("d MMM yyyy", Locale.ENGLISH).format(Date(ms))
 
 private fun String.toKm(): Double? = filter { it.isDigit() || it == '.' }.toDoubleOrNull()
 
 @Composable
-private fun BikeDialog(onDismiss: () -> Unit, onSave: (String, Double) -> Unit) {
+private fun BikeDialog(onDismiss: () -> Unit, onSave: (String, Double, VehicleKind) -> Unit) {
     var name by remember { mutableStateOf("") }
     var km by remember { mutableStateOf("") }
+    var kind by remember { mutableStateOf(VehicleKind.MOTORCYCLE) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add a bike") },
+        title = { Text("Add a vehicle") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(name, { name = it.take(40) }, label = { Text("Name, e.g. Himalayan 450") }, singleLine = true)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    VehicleKind.entries.forEach { k ->
+                        FilterChip(selected = kind == k, onClick = { kind = k }, label = { Text(k.label) })
+                    }
+                }
+                val example = when (kind) { VehicleKind.MOTORCYCLE -> "Himalayan 450"; VehicleKind.CAR -> "Thar"; VehicleKind.BICYCLE -> "Btwin Rockrider" }
+                OutlinedTextField(name, { name = it.take(40) }, label = { Text("Name, e.g. $example") }, singleLine = true)
                 OutlinedTextField(
                     km, { km = it.take(7) }, label = { Text("Odometer now (km)") }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -227,7 +246,7 @@ private fun BikeDialog(onDismiss: () -> Unit, onSave: (String, Double) -> Unit) 
                 Text("Service reminders start from today. You can change them or mark jobs you did recently.", style = MaterialTheme.typography.bodySmall)
             }
         },
-        confirmButton = { TextButton(onClick = { onSave(name, km.toKm() ?: 0.0) }) { Text("Add") } },
+        confirmButton = { TextButton(onClick = { onSave(name, km.toKm() ?: 0.0, kind) }) { Text("Add") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
 }

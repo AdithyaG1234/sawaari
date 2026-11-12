@@ -64,12 +64,12 @@ fun SettingsScreen(
         Text("Your garage", style = MaterialTheme.typography.titleMedium)
         val due = remember(Unit) { GarageReminders.all().size }
         Text(
-            if (due > 0) "$due job${if (due == 1) "" else "s"} need attention." else "Your bikes, service reminders and insurance and PUC expiry dates.",
+            if (due > 0) "$due job${if (due == 1) "" else "s"} need attention." else "Your motorcycles, cars and bicycles: service reminders and insurance and PUC expiry dates.",
             style = MaterialTheme.typography.bodySmall,
             color = if (due > 0) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
         )
         OutlinedButton(onClick = onGarage, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Bikes and service")
+            Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Vehicles and service")
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)

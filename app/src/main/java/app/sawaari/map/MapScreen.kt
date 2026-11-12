@@ -151,6 +151,9 @@ fun MapScreen(
     importLink: String? = null,
     onImportHandled: () -> Unit = {},
     onTourGuide: (() -> Unit)? = null,
+    inGroup: Boolean = false,
+    /** Starts a ride group for the planned route, named after its destination. */
+    onCreateGroup: ((String) -> Unit)? = null,
 ) {
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -205,6 +208,14 @@ fun MapScreen(
         if (importLink != null && importer != null) { importRoute(importLink); onImportHandled() }
     }
     var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
+    // A rider with no route of their own (for example, one who just joined) gets the group's route straight away.
+    LaunchedEffect(groupPlan, iAmLeader) {
+        if (groupPlan != null && !iAmLeader && !nav.navigating && nav.plan.isEmpty) { nav.loadPlan(groupPlan); hiddenPlan = groupPlan }
+    }
+    // The leader's first planned route is shared with the group automatically, so every rider gets it.
+    LaunchedEffect(iAmLeader, groupPlan == null, nav.route) {
+        if (iAmLeader && groupPlan == null && nav.route != null && nav.plan.end != null) onSharePlan?.invoke(nav.plan)
+    }
     val snackbar = remember { SnackbarHostState() }
 
     // Places along the route (food, fuel, mechanics, tyres, hospitals).
@@ -456,6 +467,7 @@ fun MapScreen(
                     nav, places, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
                     onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
                     onFindNearby = { searchPrefill = it },
+                    onCreateGroup = if (!inGroup && onCreateGroup != null) ({ onCreateGroup(nav.plan.end?.let { nav.labelFor(it) }.orEmpty()) }) else null,
                 )
                 else -> SaveAreaCard(onSave = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds })
             }

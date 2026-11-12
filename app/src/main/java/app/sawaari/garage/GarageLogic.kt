@@ -13,7 +13,16 @@ data class ServiceItem(
     val lastAt: Long,
 )
 
-/** A bike in the garage. Its odometer is [baseKm] plus every ride recorded on it. */
+/** What kind of vehicle it is: decides the usual service jobs and whether it has papers. */
+enum class VehicleKind(val label: String, val hasPapers: Boolean) {
+    MOTORCYCLE("Motorcycle", true), CAR("Car", true), BICYCLE("Bicycle", false);
+
+    companion object {
+        fun of(name: String?) = entries.firstOrNull { it.name == name } ?: MOTORCYCLE
+    }
+}
+
+/** A vehicle in the garage (motorcycle, car or bicycle). Its odometer is [baseKm] plus every ride recorded on it. */
 data class Bike(
     val id: Long,
     val name: String,
@@ -21,6 +30,7 @@ data class Bike(
     val items: List<ServiceItem>,
     /** Papers and their expiry dates (epoch ms), keyed by [Papers] name. */
     val papers: Map<String, Long> = emptyMap(),
+    val kind: VehicleKind = VehicleKind.MOTORCYCLE,
 )
 
 enum class Level { OK, SOON, DUE }
@@ -40,14 +50,30 @@ object GarageLogic {
     /** Papers show as "soon" this many days before they expire. */
     const val PAPER_SOON_DAYS = 15
 
-    /** The usual jobs for an Indian motorcycle, done "now" so the counters start from today. */
-    fun defaultItems(odoKm: Double, now: Long) = listOf(
-        ServiceItem("oil", "Engine oil change", 3000, 180, odoKm, now),
-        ServiceItem("chain", "Chain clean and lube", 500, 30, odoKm, now),
-        ServiceItem("air", "Air filter", 6000, 365, odoKm, now),
-        ServiceItem("brakes", "Brake pads check", 5000, null, odoKm, now),
-        ServiceItem("tyres", "Tyre condition check", 3000, 90, odoKm, now),
-    )
+    /** The usual jobs for [kind], done "now" so the counters start from today. */
+    fun defaultItems(odoKm: Double, now: Long, kind: VehicleKind = VehicleKind.MOTORCYCLE) = when (kind) {
+        VehicleKind.MOTORCYCLE -> listOf(
+            ServiceItem("oil", "Engine oil change", 3000, 180, odoKm, now),
+            ServiceItem("chain", "Chain clean and lube", 500, 30, odoKm, now),
+            ServiceItem("air", "Air filter", 6000, 365, odoKm, now),
+            ServiceItem("brakes", "Brake pads check", 5000, null, odoKm, now),
+            ServiceItem("tyres", "Tyre condition check", 3000, 90, odoKm, now),
+        )
+        VehicleKind.CAR -> listOf(
+            ServiceItem("oil", "Engine oil and filter", 10000, 365, odoKm, now),
+            ServiceItem("air", "Air filter", 15000, 730, odoKm, now),
+            ServiceItem("rotation", "Tyre rotation and alignment", 10000, null, odoKm, now),
+            ServiceItem("brakes", "Brake check", 10000, 365, odoKm, now),
+            ServiceItem("coolant", "Coolant", 40000, 730, odoKm, now),
+            ServiceItem("ac", "AC filter", 15000, 365, odoKm, now),
+        )
+        VehicleKind.BICYCLE -> listOf(
+            ServiceItem("chain", "Chain clean and lube", 300, 30, odoKm, now),
+            ServiceItem("tyres", "Tyre pressure check", null, 14, odoKm, now),
+            ServiceItem("brakes", "Brake pads check", 1000, 90, odoKm, now),
+            ServiceItem("tuneup", "Full tune-up", 3000, 365, odoKm, now),
+        )
+    }
 
     fun status(item: ServiceItem, odoKm: Double, now: Long): Status {
         val kmLeft = item.everyKm?.let { item.lastKm + it - odoKm }

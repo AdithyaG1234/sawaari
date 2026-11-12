@@ -21,7 +21,8 @@ Map data © OpenStreetMap contributors.
   - The leader can share the plan with the group.
 - **Route links:** Google Maps links, short links and coordinates (decimal or degrees/minutes/seconds) open as a route in Sawaari. Share your own route as a picture plus a link.
 - **Group rides:**
-  - Invite riders with a 6-letter code and see everyone live on the map, even with the screen off.
+  - Creating a group asks for the route: paste a Google Maps link or plan it on the offline map. A planned route can be turned into a group with one tap.
+  - Invite riders with a 6-letter code and see everyone live on the map, even with the screen off. Riders who join, even later, get the route on their map.
   - The leader sets a meeting point.
   - Riders can be given roles: Sweep, Marshal or Medic.
 - **Group chat:** one-tap quick messages ("Fuel stop", "Puncture, need help") and hold-to-talk voice notes, with notifications while riding.
@@ -35,8 +36,8 @@ Map data © OpenStreetMap contributors.
   - Includes optional blood group and medical notes.
 - **Crash detection (opt-in):** after a hard impact followed by stopping, Sawaari beeps and counts down 30 seconds, then sends the SOS unless the rider taps I'm OK.
 - **Ride history:** every ride is recorded on the phone with distance, riding time, average and top speed, and a map of the route.
-- **Garage:**
-  - Your bikes, with the odometer kept up to date from your rides.
+- **Garage (motorcycles, cars and bicycles):**
+  - Your vehicles, each with its own usual service jobs, and the odometer kept up to date from your rides.
   - Service reminders by km or months: oil, chain, air filter, brakes, tyres and your own jobs.
   - Insurance, PUC and RC expiry reminders.
 

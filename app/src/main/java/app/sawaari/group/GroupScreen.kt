@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.sp
 import app.sawaari.geo.GeoPoint
 import app.sawaari.geo.distanceMeters
 import app.sawaari.nav.formatDistance
+import app.sawaari.nav.RidePlan
+import app.sawaari.share.RouteLinks
 import kotlinx.coroutines.delay
 
 /** Create or join a ride group, share the code, and see who's riding. */
@@ -60,6 +62,12 @@ fun GroupScreen(
     modifier: Modifier = Modifier,
     sosContacts: List<EmergencyContact> = emptyList(),
     onRideTo: (GeoPoint) -> Unit = {},
+    /** Open the map to plan the route there. */
+    onPlanOnMap: () -> Unit = {},
+    /** Load a pasted Google Maps (or Sawaari) route link on the map. */
+    onImportLink: (String) -> Unit = {},
+    /** Show the group's route on the map. */
+    onShowRoute: () -> Unit = {},
 ) {
     var selected by remember { mutableStateOf<Rider?>(null) }
     val group by repo.group.collectAsState()
@@ -124,7 +132,7 @@ fun GroupScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Start a ride group", style = MaterialTheme.typography.titleMedium)
-                        Text("You'll be the leader. Share the code so others can join.", style = MaterialTheme.typography.bodySmall)
+                        Text("You'll be the leader. Next, add the route (paste a Google Maps link or plan it on the map) and share the code so others can join.", style = MaterialTheme.typography.bodySmall)
                         var groupName by remember { mutableStateOf("") }
                         OutlinedTextField(
                             value = groupName, onValueChange = { groupName = it.take(60) },
@@ -164,8 +172,11 @@ fun GroupScreen(
                     Text(g.code, fontSize = 36.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, letterSpacing = 6.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
-                            val text = "Join my ride \"${g.name}\" on Sawaari. Open the Group tab and enter code ${g.code}.\n" +
-                                "Get the app: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk"
+                            val text = buildString {
+                                append("Join my ride \"${g.name}\" on Sawaari. Open the Group tab and enter code ${g.code}. The route loads on your map when you join.\n")
+                                g.plan?.let { p -> RouteLinks.googleLink(p)?.let { append("Route on Google Maps: ").append(it).append("\n") } }
+                                append("Get the app: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk")
+                            }
                             context.startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text), "Invite riders"))
                         }) {
                             Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Invite")
@@ -179,6 +190,8 @@ fun GroupScreen(
 
         val iAmLeader = g.leaderUid == repo.myUid
         val meRider = g.riders.firstOrNull { it.uid == repo.myUid }
+
+        item { RouteStep(g.plan, g.planBy, iAmLeader, onPlanOnMap, onImportLink, onShowRoute) }
 
         item {
             val seen = remember(chat.size, showChat) { ChatSeen.last(context) }
@@ -330,4 +343,77 @@ private fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): Stri
     if (r.speedKmh >= 3) parts += "${r.speedKmh.toInt()} km/h"
     parts += "updated $age"
     return flags + parts.joinToString(" · ")
+}
+
+
+/**
+ * The group's route. Every rider gets it on their map, including riders who join later. Until the
+ * leader adds one, the leader sees the two ways to add it: paste a Google Maps link or plan it on the map.
+ */
+@Composable
+private fun RouteStep(
+    plan: RidePlan?, planBy: String, iAmLeader: Boolean,
+    onPlanOnMap: () -> Unit, onImportLink: (String) -> Unit, onShowRoute: () -> Unit,
+) {
+    var pasting by remember { mutableStateOf(false) }
+    val highlight = plan == null && iAmLeader
+    Card(
+        Modifier.fillMaxWidth(),
+        colors = if (highlight) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer) else CardDefaults.cardColors(),
+    ) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Ride route", style = MaterialTheme.typography.titleMedium)
+            when {
+                plan != null -> {
+                    val stops = plan.stops.size
+                    Text(
+                        "Shared${if (planBy.isNotBlank()) " by $planBy" else ""}" +
+                            (if (stops > 0) " · $stops stop${if (stops == 1) "" else "s"}" else "") +
+                            ". Every rider gets it on their map, including anyone who joins later.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Button(onClick = onShowRoute) { Text("Show route on map") }
+                }
+                iAmLeader -> Text(
+                    "Add the route so every rider gets it on their map, including riders who join later.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                else -> Text(
+                    "The leader hasn't added the route yet. It will load on your map as soon as they do.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (iAmLeader) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (plan == null) Button(onClick = { pasting = true }) { Text("Paste Google Maps link") }
+                    else OutlinedButton(onClick = { pasting = true }) { Text("Paste a new link") }
+                    OutlinedButton(onClick = onPlanOnMap) { Text(if (plan == null) "Plan on map" else "Change on map") }
+                }
+            }
+        }
+    }
+    if (pasting) {
+        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+        var link by remember { mutableStateOf(clipboard.getText()?.text?.takeIf { "http" in it || "," in it }.orEmpty()) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { pasting = false },
+            title = { Text("Route from Google Maps") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        "In Google Maps, plan the route with your stops, tap Share and copy the link. Then paste it here. It opens on the offline map and is shared with the group.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = link, onValueChange = { link = it }, label = { Text("Google Maps link") },
+                        modifier = Modifier.fillMaxWidth(), maxLines = 3,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = link.isNotBlank(), onClick = { onImportLink(link.trim()); pasting = false }) { Text("Load route") }
+            },
+            dismissButton = { TextButton(onClick = { pasting = false }) { Text("Cancel") } },
+        )
+    }
 }
