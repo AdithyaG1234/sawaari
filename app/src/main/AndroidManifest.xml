@@ -90,5 +90,8 @@
             android:name=".ride.RideService"
             android:exported="false"
             android:foregroundServiceType="location" />
+        <receiver
+            android:name=".sos.CrashOkReceiver"
+            android:exported="false" />
     </application>
 </manifest>
