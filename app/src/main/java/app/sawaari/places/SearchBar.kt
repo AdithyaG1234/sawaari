@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import app.sawaari.geo.GeoPoint
@@ -53,6 +55,8 @@ fun MapSearchBar(
     onLink: (String) -> Unit,
     onOpenLinkSettings: () -> Unit,
     modifier: Modifier = Modifier,
+    prefill: String? = null,
+    onPrefillUsed: () -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
@@ -61,6 +65,10 @@ fun MapSearchBar(
     var searched by remember { mutableStateOf(false) }
     val focus = LocalFocusManager.current
     val isLink = query.contains("http") || query.startsWith("sawaari://")
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(prefill) {
+        if (prefill != null) { query = prefill; runCatching { focusRequester.requestFocus() }; onPrefillUsed() }
+    }
 
     LaunchedEffect(query) {
         searched = false
@@ -95,7 +103,7 @@ fun MapSearchBar(
                     focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
                 ),
-                modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester).onFocusChanged { focused = it.isFocused },
             )
             if (focused && query.isEmpty()) {
                 HorizontalDivider()
