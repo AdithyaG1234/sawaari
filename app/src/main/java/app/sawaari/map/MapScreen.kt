@@ -175,6 +175,8 @@ fun MapScreen(
     var pendingBounds by remember { mutableStateOf<LatLngBounds?>(null) }
     var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
     var pressedLabel by remember { mutableStateOf<String?>(null) }
+    /** Text to put in the search box, e.g. a stop's name after "Find nearby". */
+    var searchPrefill by remember { mutableStateOf<String?>(null) }
     val placeSearch = remember(places) { places?.let { PlaceSearch(it) } }
     val importer = remember(placeSearch) { placeSearch?.let { RouteImporter(it) } }
     fun importRoute(text: String) {
@@ -385,6 +387,8 @@ fun MapScreen(
                     },
                     onLink = ::importRoute,
                     onOpenLinkSettings = { openLinkSettings(context) },
+                    prefill = searchPrefill,
+                    onPrefillUsed = { searchPrefill = null },
                 )
             }
             if (groupPlan != null && !iAmLeader && !nav.navigating && groupPlan != nav.plan && groupPlan != hiddenPlan) {
@@ -445,8 +449,9 @@ fun MapScreen(
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
                 }
                 !nav.plan.isEmpty -> RouteCard(
-                    nav, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
+                    nav, places, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
                     onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
+                    onFindNearby = { searchPrefill = it },
                 )
                 else -> SaveAreaCard(onSave = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds })
             }
@@ -520,73 +525,6 @@ fun MapScreen(
 }
 
 @Composable
-private fun RouteCard(nav: NavigationController, onShare: ((RidePlan) -> Unit)?, sharedPlan: RidePlan?, onShareRoute: () -> Unit) {
-    val plan = nav.plan
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val r = nav.route
-            if (r == null) {
-                Text("Ride plan", style = MaterialTheme.typography.titleMedium)
-            } else {
-                Text("${formatDistance(r.distanceMeters)} · ${formatDuration(r.timeMillis)}", style = MaterialTheme.typography.titleLarge)
-            }
-            // Start, stops, destination, each removable.
-            PlanRow("S", PLAN_START, if (plan.start == null) "Start: my location" else "Start: ${nav.labelFor(plan.start) ?: coord(plan.start)}",
-                onRemove = plan.start?.let { { nav.setStart(null) } })
-            plan.stops.forEachIndexed { i, p ->
-                PlanRow("${i + 1}", PLAN_STOP, "Stop ${i + 1}: ${nav.labelFor(p) ?: coord(p)}", onRemove = { nav.removeStop(i) })
-            }
-            PlanRow("E", PLAN_END, plan.end?.let { "Destination: ${nav.labelFor(it) ?: coord(it)}" } ?: "Destination: search above, or long-press the map",
-                onRemove = plan.end?.let { { nav.clearEnd() } })
-            Text(
-                if (r == null) "Search above or long-press the map to add stops. Routes are calculated on your phone, no signal needed."
-                else "Fastest route through your stops, calculated offline",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                if (r == null) {
-                    Button(onClick = { nav.planRoute() }, enabled = !nav.busy && plan.end != null) {
-                        if (nav.busy) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp)
-                        else Icon(Icons.Default.Directions, null)
-                        Spacer(Modifier.width(8.dp)); Text("Plan route")
-                    }
-                } else {
-                    Button(onClick = { nav.start() }) {
-                        Icon(Icons.Default.Navigation, null); Spacer(Modifier.width(8.dp)); Text("Start")
-                    }
-                }
-                OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
-            }
-            if (plan.end != null) {
-                TextButton(onClick = onShareRoute) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share route (WhatsApp etc.)")
-                }
-            }
-            if (onShare != null && plan.end != null) {
-                val shared = sharedPlan == plan
-                TextButton(onClick = { onShare(plan) }, enabled = !shared) {
-                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp))
-                    Text(if (shared) "Shared with your group" else "Share plan with group")
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PlanRow(badge: String, color: String, text: String, onRemove: (() -> Unit)?) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier.size(24.dp).background(Color(android.graphics.Color.parseColor(color)), CircleShape),
-            contentAlignment = Alignment.Center,
-        ) { Text(badge, color = Color.White, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold) }
-        Spacer(Modifier.width(12.dp))
-        Text(text, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-        if (onRemove != null) IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) { Icon(Icons.Default.Close, "Remove") }
-    }
-}
-
-@Composable
 private fun SharedPlanBanner(plan: RidePlan, by: String, onLoad: () -> Unit, onHide: () -> Unit) {
     Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -599,8 +537,6 @@ private fun SharedPlanBanner(plan: RidePlan, by: String, onLoad: () -> Unit, onH
         }
     }
 }
-
-private fun coord(p: GeoPoint) = "%.4f, %.4f".format(java.util.Locale.US, p.lat, p.lon)
 
 private const val PLAN_START = "#2E7D32"
 private const val PLAN_STOP = "#F9A825"

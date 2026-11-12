@@ -39,6 +39,11 @@ class NavigationController(
     var progress by mutableStateOf<NavProgress?>(null); private set
     var busy by mutableStateOf(false); private set
     var message by mutableStateOf<String?>(null)
+    /** Plan points that can't be routed offline, with the reason, shown on that row of the plan. */
+    val problems = mutableStateMapOf<GeoPoint, String>()
+    /** The rider asked to come back to where they started. */
+    var roundTrip by mutableStateOf(false); private set
+    val isRoundTrip: Boolean get() = plan.end != null && (roundTrip || plan.end == plan.start)
 
     private var tracker: NavigationTracker? = null
     private val prompts = VoicePrompts()
@@ -56,7 +61,21 @@ class NavigationController(
 
     val myPosition: GeoPoint? get() = location?.let { GeoPoint(it.latitude, it.longitude) }
 
-    fun chooseDestination(p: GeoPoint) = updatePlan { it.copy(end = p) }
+    fun chooseDestination(p: GeoPoint) { roundTrip = false; updatePlan { it.copy(end = p) } }
+
+    /** Come back to the start (or to where I am now, if the start is my location). */
+    fun makeRoundTrip(on: Boolean) {
+        if (!on) { if (isRoundTrip) { roundTrip = false; updatePlan { it.copy(end = null) } }; return }
+        val home = plan.start ?: myPosition ?: run { message = "Waiting for your GPS location…"; return }
+        updatePlan { it.copy(end = home) }
+        roundTrip = true
+    }
+
+    /** Move a stop up or down the list. */
+    fun moveStop(from: Int, to: Int) {
+        if (from !in plan.stops.indices || to !in plan.stops.indices) return
+        updatePlan { p -> p.copy(stops = p.stops.toMutableList().apply { add(to, removeAt(from)) }) }
+    }
     fun setStart(p: GeoPoint?) = updatePlan { it.copy(start = p) }
     fun addStop(p: GeoPoint) {
         if (plan.stops.size >= RidePlan.MAX_STOPS) { message = "You can add up to ${RidePlan.MAX_STOPS} stops."; return }
@@ -70,12 +89,14 @@ class NavigationController(
         plan = plan.copy(stops = plan.stops.take(stopsReached) + p + plan.stops.drop(stopsReached))
         reroute()
     }
-    fun clearEnd() = updatePlan { it.copy(end = null) }
+    fun clearEnd() { roundTrip = false; updatePlan { it.copy(end = null) } }
 
     /** Replace the whole plan, e.g. with the one the leader shared, and plan the route. */
     fun loadPlan(p: RidePlan) {
         if (navigating) stop()
         plan = p
+        roundTrip = false
+        problems.clear()
         route = null
         planRoute()
     }
@@ -83,12 +104,15 @@ class NavigationController(
     private fun updatePlan(change: (RidePlan) -> RidePlan) {
         if (navigating) return
         plan = change(plan)
+        problems.clear()
         route = null
     }
 
     fun clear() {
         stop()
         plan = RidePlan()
+        roundTrip = false
+        problems.clear()
         route = null
     }
 
@@ -96,15 +120,14 @@ class NavigationController(
         if (plan.end == null) { message = "Long-press the map and choose End here to set the destination."; return }
         val points = plan.waypoints(myPosition) ?: run { message = "Waiting for your GPS location…"; return }
         app.sawaari.routing.pointsOutsidePacks(points)?.let { (pack, outside) ->
-            // Name the exact point that's out of range, so the rider can fix or remove it.
-            val names = outside.map { i ->
-                val role = when (i) { 0 -> "Start"; points.lastIndex -> "Destination"; else -> "Stop $i" }
-                val label = labelFor(points[i])?.let { " ($it)" } ?: ""
-                val km = app.sawaari.nav.formatDistance(app.sawaari.geo.distanceMeters(points.first(), points[i]))
-                "$role$label is $km from the start"
+            // Mark the exact points that are out of range on the plan, so the rider can fix or remove them.
+            problems.clear()
+            outside.forEach { i ->
+                val km = formatDistance(app.sawaari.geo.distanceMeters(points.first(), points[i]))
+                problems[points[i]] = "$km from the start, outside the ${pack.name} offline area"
             }
-            message = names.joinToString("; ") +
-                ", outside the ${pack.name} area for offline navigation. Remove it, or search again and pick the nearby result."
+            message = if (outside.size == 1) "One place is outside the offline map area. It's marked in red in the plan."
+            else "${outside.size} places are outside the offline map area. They're marked in red in the plan."
             return
         }
         busy = true
