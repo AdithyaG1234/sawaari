@@ -2,6 +2,7 @@ package app.sawaari.ride
 
 import android.content.Context
 import android.location.Location
+import app.sawaari.garage.Garage
 import app.sawaari.geo.GeoPoint
 import app.sawaari.geo.distanceMeters
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,7 +13,8 @@ import org.json.JSONObject
 import java.io.File
 
 /** A finished ride, as saved on the phone. */
-data class SavedRide(val id: Long, val title: String, val track: List<TrackPoint>) {
+/** [bikeId] is the garage bike the ride was recorded on (0 when none). */
+data class SavedRide(val id: Long, val title: String, val track: List<TrackPoint>, val bikeId: Long = 0L) {
     val stats: RideStats by lazy { RideStats.of(track) }
 }
 
@@ -30,6 +32,10 @@ object RideRecorder {
     private var dir: File? = null
     private val reasons = mutableSetOf<String>()
     private var title = ""
+    private var bikeId = 0L
+
+    /** Runs after a ride is saved, e.g. to check whether a bike service has come due. */
+    var onRideSaved: (() -> Unit)? = null
     private val current = mutableListOf<TrackPoint>()
 
     private val _rides = MutableStateFlow<List<SavedRide>>(emptyList())
@@ -54,7 +60,7 @@ object RideRecorder {
      */
     fun setActive(reason: String, on: Boolean, name: String? = null) {
         if (on) {
-            if (reasons.isEmpty()) { current.clear(); title = "" }
+            if (reasons.isEmpty()) { current.clear(); title = ""; bikeId = Garage.currentBikeId() }
             reasons += reason
             if (!name.isNullOrBlank() && (title.isBlank() || reason == "group")) title = name
         } else if (reasons.remove(reason) && reasons.isEmpty()) {
@@ -76,7 +82,7 @@ object RideRecorder {
             if (!far && p.t - last.t < KEEP_EVERY_MS) return
         }
         current += p
-        if (current.size % SAVE_EVERY_POINTS == 0) dir?.let { write(File(it, "current.json"), SavedRide(current.first().t, title, current.toList())) }
+        if (current.size % SAVE_EVERY_POINTS == 0) dir?.let { write(File(it, "current.json"), SavedRide(current.first().t, title, current.toList(), bikeId)) }
     }
 
     fun delete(id: Long) {
@@ -85,10 +91,11 @@ object RideRecorder {
     }
 
     private fun finish() {
-        if (current.isNotEmpty()) keep(SavedRide(current.first().t, title, current.toList()))
+        if (current.isNotEmpty()) keep(SavedRide(current.first().t, title, current.toList(), bikeId))
         current.clear()
         dir?.let { File(it, "current.json").delete() }
         reload()
+        onRideSaved?.invoke()
     }
 
     private fun keep(r: SavedRide) {
@@ -106,7 +113,7 @@ object RideRecorder {
     private fun write(f: File, r: SavedRide) {
         val pts = JSONArray()
         r.track.forEach { pts.put(JSONArray().put(it.lat).put(it.lon).put(it.t).put(it.kmh)) }
-        runCatching { f.writeText(JSONObject().put("id", r.id).put("title", r.title).put("points", pts).toString()) }
+        runCatching { f.writeText(JSONObject().put("id", r.id).put("title", r.title).put("bike", r.bikeId).put("points", pts).toString()) }
     }
 
     private fun read(f: File): SavedRide {
@@ -116,7 +123,7 @@ object RideRecorder {
             val p = a.getJSONArray(i)
             TrackPoint(p.getDouble(0), p.getDouble(1), p.getLong(2), p.getDouble(3))
         }
-        return SavedRide(o.optLong("id", track.firstOrNull()?.t ?: 0L), o.optString("title"), track)
+        return SavedRide(o.optLong("id", track.firstOrNull()?.t ?: 0L), o.optString("title"), track, o.optLong("bike"))
     }
 
     /** First and last point of a ride, for its list entry. */
