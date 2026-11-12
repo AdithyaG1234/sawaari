@@ -102,7 +102,7 @@ object TourGuide {
         TourStep(
             Icons.Default.Groups, "4. Ride as a group",
             listOf(
-                "In the Group tab, the leader taps Create group, adds the route (paste a Google Maps link or plan it on the map) and shares the 6-letter code. Already planned a route? Tap \"Create a group for this route\" on the route card.",
+                "Tap the round Ride button on the map (or open the Group tab). The leader taps Create group, adds the route (paste a Google Maps link or plan it on the map) and shares the 6-letter code. Already planned a route? Tap \"Create a group for this route\" on the route card.",
                 "Riders enter the code to join, and the route loads on their map, even if they join later.",
                 "Everyone shows live on the map, even with the screen off. Tap a rider to call them or see their emergency contact.",
                 "The leader can set a meeting point with date and time, share the ride plan, and give riders roles: Sweep (the last rider), Marshal or Medic.",
@@ -112,7 +112,7 @@ object TourGuide {
         TourStep(
             Icons.Default.NotificationsActive, "5. Group alerts",
             listOf(
-                "Tap \"Taking a break\" in the Group tab so everyone knows you stopped on purpose.",
+                "Tap \"Taking a break\" in the Ride window or the Group tab so everyone knows you stopped on purpose.",
                 "Sawaari alerts the group when a rider stops unplanned, leaves the route, falls far behind, hits slow traffic, reroutes or loses signal.",
                 "If the leader is in trouble, another rider can take over as leader.",
             ),

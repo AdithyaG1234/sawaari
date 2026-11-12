@@ -32,6 +32,7 @@ import app.sawaari.sos.SosSettings
 import app.sawaari.ride.RideRecorder
 import app.sawaari.ride.RideHistoryScreen
 import app.sawaari.garage.GarageReminders
+import app.sawaari.group.RideHub
 import app.sawaari.garage.GarageScreen
 import app.sawaari.sos.CrashWatch
 import androidx.compose.material3.Surface
@@ -231,6 +232,14 @@ class MainActivity : ComponentActivity() {
                                 groups.create(name.ifBlank { "Weekend ride" })
                                 tab = 2
                             },
+                        )
+                        // Floating "Ride" button on the map: plan, group, route, chat, break and riders in one window.
+                        if (tab == 0) RideHub(
+                            groups, myPosition, sosContacts,
+                            onPlanOnMap = {},
+                            onImportLink = { incomingLink.value = it },
+                            onShowRoute = {},
+                            onRideTo = { rideTo = it },
                         )
                         if (tab == 4) Surface(Modifier.fillMaxSize()) {
                             SettingsScreen(
