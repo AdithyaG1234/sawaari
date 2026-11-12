@@ -120,6 +120,24 @@ fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
         }
 
         item {
+            var crashOn by remember { mutableStateOf(CrashWatch.isEnabled(context)) }
+            Card(Modifier.fillMaxWidth()) {
+                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("Crash detection", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        androidx.compose.material3.Switch(checked = crashOn, onCheckedChange = { crashOn = it; CrashWatch.setEnabled(context, it) })
+                    }
+                    Text(
+                        "After a hard jolt while riding, if your bike then stays still, Sawaari beeps and counts down " +
+                            "${CrashWatch.COUNTDOWN_S} seconds. Tap I'm OK to stop it, otherwise your SOS goes to your contacts and group. " +
+                            "Works with the app open or during a group ride. Keep your phone on the bike or in a jacket pocket.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+
+        item {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Send SMS automatically", style = MaterialTheme.typography.titleMedium)

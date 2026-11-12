@@ -56,10 +56,12 @@ class RideService : Service() {
             started = true
             val app = application as SawaariApp
             val groups = app.groups
+            app.sawaari.sos.CrashWatch.start(this)
             scope.launch {
                 locationUpdates(this@RideService, intervalMs = 5_000L).collect { loc ->
                     me = GeoPoint(loc.latitude, loc.longitude)
                     groups.publish(loc)
+                    app.sawaari.sos.CrashWatch.onLocation(this@RideService, loc)
                 }
             }
             scope.launch {
