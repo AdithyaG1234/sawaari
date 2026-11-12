@@ -21,6 +21,7 @@ import app.sawaari.R
 import app.sawaari.SawaariApp
 import app.sawaari.geo.GeoPoint
 import app.sawaari.group.Role
+import app.sawaari.sos.CrashWatch
 import app.sawaari.location.locationUpdates
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -56,11 +57,13 @@ class RideService : Service() {
             started = true
             val app = application as SawaariApp
             val groups = app.groups
+            CrashWatch.start(this)
             scope.launch {
                 locationUpdates(this@RideService, intervalMs = 5_000L).collect { loc ->
                     me = GeoPoint(loc.latitude, loc.longitude)
                     groups.publish(loc)
                     RideRecorder.onLocation(loc)
+                    CrashWatch.onLocation(this@RideService, loc)
                 }
             }
             scope.launch {

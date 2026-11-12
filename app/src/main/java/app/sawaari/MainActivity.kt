@@ -31,6 +31,7 @@ import app.sawaari.sos.SosPermissions
 import app.sawaari.sos.SosSettings
 import app.sawaari.ride.RideRecorder
 import app.sawaari.ride.RideHistoryScreen
+import app.sawaari.sos.CrashWatch
 import androidx.compose.material3.Surface
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -111,6 +112,12 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) { repo.refresh() }
                 // A group ride counts as a ride for the history, from joining until leaving.
                 LaunchedEffect(group?.code) { RideRecorder.setActive("group", group != null, group?.name) }
+                LaunchedEffect(Unit) { CrashWatch.start(applicationContext) }
+                val crashLeft by CrashWatch.secondsLeft.collectAsState()
+                val crashResult by CrashWatch.result.collectAsState()
+                // Once, after the tour: ask new riders to add SOS contacts, so SOS works on the first ride.
+                val sosPrefs = remember { applicationContext.getSharedPreferences("sos", MODE_PRIVATE) }
+                var askSosSetup by remember { mutableStateOf(!sosPrefs.getBoolean("setup_prompted", false)) }
                 LaunchedEffect(incomingLink.value) { if (incomingLink.value != null) tab = 0 }
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
@@ -185,7 +192,7 @@ class MainActivity : ComponentActivity() {
                             onDownloadArea = { name, bounds -> repo.download(name, bounds); tab = 1 },
                             groupRiders = group?.riders.orEmpty(),
                             myUid = groups.myUid,
-                            onLocation = { lastLocation = it; groups.publish(it); RideRecorder.onLocation(it) },
+                            onLocation = { lastLocation = it; groups.publish(it); CrashWatch.onLocation(applicationContext, it); RideRecorder.onLocation(it) },
                             onPositionChanged = { myPosition = it },
                             sosAlerts = sosAlerts,
                             onDismissSos = groups::dismissAlert,
@@ -295,6 +302,50 @@ class MainActivity : ComponentActivity() {
                         dismissButton = {
                             TextButton(onClick = { sosCountdown = null }) { Text("CANCEL", color = Color.White) }
                         },
+                    )
+                }
+                if (askSosSetup && !showTour && sosContacts.isEmpty() && incomingLink.value == null) AlertDialog(
+                    onDismissRequest = { askSosSetup = false; sosPrefs.edit().putBoolean("setup_prompted", true).apply() },
+                    title = { Text("Set up SOS before you ride") },
+                    text = {
+                        Text(
+                            "Add one or two people to text in an emergency. SOS sends them your location by SMS, " +
+                                "so it works even with no mobile data. You can also turn on crash detection there."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            askSosSetup = false; sosPrefs.edit().putBoolean("setup_prompted", true).apply(); tab = 3
+                        }) { Text("Set up now") }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { askSosSetup = false; sosPrefs.edit().putBoolean("setup_prompted", true).apply() }) { Text("Later") }
+                    },
+                )
+                crashLeft?.let { left ->
+                    AlertDialog(
+                        onDismissRequest = {},
+                        containerColor = Color(0xFFD32F2F),
+                        titleContentColor = Color.White,
+                        textContentColor = Color.White,
+                        title = { Text("Crash detected. SOS in $left", fontWeight = FontWeight.Bold) },
+                        text = { Text("Your location will go to your emergency contacts and your ride group. Tap I'M OK if you're fine.") },
+                        confirmButton = {
+                            TextButton(onClick = { CrashWatch.cancel(applicationContext) }) {
+                                Text("I'M OK", color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { CrashWatch.sendNow(applicationContext) }) { Text("SEND NOW", color = Color.White) }
+                        },
+                    )
+                }
+                crashResult?.let { msg ->
+                    AlertDialog(
+                        onDismissRequest = { CrashWatch.result.value = null },
+                        title = { Text("Crash SOS") },
+                        text = { Text(msg) },
+                        confirmButton = { TextButton(onClick = { CrashWatch.result.value = null }) { Text("OK") } },
                     )
                 }
                 sosResult?.let { msg ->
