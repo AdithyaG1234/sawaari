@@ -11,20 +11,34 @@ An Android app for motorcycle riders on weekend group trips: offline maps, navig
 
 Map data © OpenStreetMap contributors.
 
-## Features (v1.0)
-- **Offline maps:** download the visible area or one-tap ride regions (Coorg, Lonavala, Manali-Leh, Spiti and more). They work with no network.
-- **Offline navigation:** turn-by-turn voice directions computed on the phone (GraphHopper), with automatic rerouting.
-- **Ride plans:** long-press the map to set a start, up to 8 stops and a destination. The leader can share the plan with the group.
+## Features
+- **Offline maps:** download the visible area, or pick from one-tap ride areas across India. These include Coorg, Ooty and Munnar, Goa and the Konkan, Gokarna, Kerala, Pondicherry, Hyderabad and Srisailam, Rishikesh and Chopta, Rajasthan, Manali to Leh, Spiti, Kashmir, Sikkim and Meghalaya. Downloaded maps work with no network.
+- **Offline navigation:** turn-by-turn voice directions are worked out on the phone (GraphHopper), with automatic rerouting. Each area also has offline places along the route: food, fuel, mechanics, tyre shops and hospitals.
+- **Ride plans:**
+  - Long-press the map or search to set a start, up to 8 stops and a destination.
+  - Reorder stops and turn on Round trip.
+  - Stops that can't be reached are marked, with a quick way to fix them.
+  - The leader can share the plan with the group.
+- **Route links:** Google Maps links, short links and coordinates (decimal or degrees/minutes/seconds) open as a route in Sawaari. Share your own route as a picture plus a link.
 - **Group rides:**
-  - Invite riders with a 6-letter code and see everyone live on the map.
-  - The leader picks a sweep (last rider).
-  - Location sharing keeps working with the screen off.
-- **Alerts for the whole group:** "Taking a break", a rider stopped for 5 min, the leader or sweep with no signal. The leader also hears when a rider falls 2 km behind.
-- **Leader handover:** the leader can hand over. If the leader has no signal for 10 min, sends an SOS or leaves, any rider can take over.
+  - Invite riders with a 6-letter code and see everyone live on the map, even with the screen off.
+  - The leader sets a meeting point.
+  - Riders can be given roles: Sweep, Marshal or Medic.
+- **Group chat:** one-tap quick messages ("Fuel stop", "Puncture, need help") and hold-to-talk voice notes, with notifications while riding.
+- **Alerts for the whole group:**
+  - "Taking a break".
+  - A rider stopped unexpectedly, left the route, fell behind or lost signal.
+  - Leader handover.
 - **SOS:**
   - A 5-second countdown, then an SMS with your location goes to up to 5 emergency contacts (no mobile data needed).
-  - The ride group is alerted too.
+  - The ride group is alerted too, and the group's medic is told they're needed.
   - Includes optional blood group and medical notes.
+- **Crash detection (opt-in):** after a hard impact followed by stopping, Sawaari beeps and counts down 30 seconds, then sends the SOS unless the rider taps I'm OK.
+- **Ride history:** every ride is recorded on the phone with distance, riding time, average and top speed, and a map of the route.
+- **Garage:**
+  - Your bikes, with the odometer kept up to date from your rides.
+  - Service reminders by km or months: oil, chain, air filter, brakes, tyres and your own jobs.
+  - Insurance, PUC and RC expiry reminders.
 
 ## Download
 Latest release: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk
@@ -54,10 +68,10 @@ Open the folder in Android Studio (Ladybug or newer) and press Run, or:
 ```
 
 ## Roadmap
-Done in v1.0: offline maps, offline navigation, ride plans with stops, group rides with alerts and leader handover, SOS.
+Done: offline maps and navigation for 13 areas, ride plans, route links, group rides with alerts, roles and chat, SOS with crash detection, ride history and the garage.
 
 Next:
-1. iPhone app
-2. Multi-day trip planner
-3. Ride recording and stats (stored as structured data, ready for the AI Instagram infographic later)
+1. Clubs and events (club pages, upcoming rides with RSVPs)
+2. iPhone app
+3. Multi-day trip planner
 4. Play Store release (needs a private signing key and Google's approval for SMS and location)
