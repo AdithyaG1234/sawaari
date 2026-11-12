@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.Route
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.automirrored.filled.Chat
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
@@ -50,7 +52,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 
 /** Bottom tabs a tour step can jump to. Numbers match the tabs in MainActivity. */
-enum class TourTab(val index: Int) { MAP(0), OFFLINE(1), GROUP(2), SOS(3) }
+enum class TourTab(val index: Int) { MAP(0), OFFLINE(1), GROUP(2), SOS(3), HISTORY(5), GARAGE(6) }
 
 data class TourStep(
     val icon: ImageVector,
@@ -65,7 +67,7 @@ object TourGuide {
         TourStep(
             Icons.Default.TwoWheeler, "Welcome to Sawaari",
             listOf(
-                "Sawaari keeps a riding group together: offline maps and navigation, live locations, group alerts and SOS.",
+                "Sawaari keeps a riding group together: offline maps and navigation, live locations, group chat and alerts, SOS with crash detection, and your ride history and bike service in one place.",
                 "This short tour shows where everything is. Swipe or tap Next. You can open it again any time from the ? button on the map.",
             ),
         ),
@@ -73,6 +75,7 @@ object TourGuide {
             Icons.Default.DownloadForOffline, "1. Save maps before you ride",
             listOf(
                 "Open the Offline tab and download the area you will ride in, or pan the map there and tap \"Save this map for offline use\".",
+                "Ready-made areas cover Karnataka, Kerala, Tamil Nadu, Goa, Maharashtra, Hyderabad, Delhi and Uttarakhand, Himachal and Ladakh, Kashmir, Rajasthan, Sikkim and Meghalaya.",
                 "Also download \"Offline navigation\" for that area so routes work with no signal.",
                 "Do this on Wi-Fi at home. The maps stay on the phone.",
             ),
@@ -83,6 +86,7 @@ object TourGuide {
             listOf(
                 "Type a place in the search bar at the top of the map, or long-press anywhere on the map.",
                 "Choose \"Start here\", \"Add as stop\" (breakfast, fuel, sights, up to 8) or \"End here\".",
+                "Use the arrows on the route card to reorder stops, and turn on Round trip to finish back at the start.",
                 "Tap Plan route to see distance and time, then Start for turn-by-turn voice navigation.",
             ),
             TourTab.MAP, "Go to the map",
@@ -100,7 +104,7 @@ object TourGuide {
             listOf(
                 "In the Group tab, the leader taps Create group and shares the 6-letter code. Others enter it to join.",
                 "Everyone shows live on the map, even with the screen off. Tap a rider to call them or see their emergency contact.",
-                "The leader can set a meeting point with date and time, share the ride plan, and pick a sweep (the last rider).",
+                "The leader can set a meeting point with date and time, share the ride plan, and give riders roles: Sweep (the last rider), Marshal or Medic.",
             ),
             TourTab.GROUP, "Open Group",
         ),
@@ -114,15 +118,24 @@ object TourGuide {
             TourTab.GROUP, "Open Group",
         ),
         TourStep(
-            Icons.Default.HealthAndSafety, "6. Set up SOS now",
+            Icons.AutoMirrored.Filled.Chat, "6. Group chat and voice notes",
+            listOf(
+                "Open Group chat in the Group tab. Tap a quick message like \"Fuel stop\" or \"Puncture, need help\" without typing.",
+                "Hold the mic button to record a voice note (up to 30 seconds) and let go to send. Nobody has to type while riding.",
+            ),
+            TourTab.GROUP, "Open Group",
+        ),
+        TourStep(
+            Icons.Default.HealthAndSafety, "7. Set up SOS now",
             listOf(
                 "In Settings, tap Set up SOS contacts. Add emergency contacts and your blood group or medical notes, and allow SMS.",
                 "Press the red SOS button in the bottom bar, next to Settings. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
+                "Turn on crash detection there too. After a hard impact it beeps for 30 seconds, then sends the SOS by itself unless you tap I'm OK.",
             ),
             TourTab.SOS, "Set up SOS",
         ),
         TourStep(
-            Icons.Default.Share, "7. Share routes",
+            Icons.Default.Share, "8. Share routes",
             listOf(
                 "On the route card, tap \"Share route (WhatsApp etc.)\" to send a map picture and a link that opens in Sawaari.",
                 "Got a Google Maps route on WhatsApp? Share it to Sawaari or paste it into the search bar to open it here.",
@@ -130,9 +143,17 @@ object TourGuide {
             TourTab.MAP, "Go to the map",
         ),
         TourStep(
+            Icons.Default.Timeline, "9. Your rides and your bike",
+            listOf(
+                "Every ride you navigate or ride with a group is saved with its distance, riding time and speeds. See them in Settings, Ride history and stats.",
+                "Add your bike in Settings, Bikes and service. Rides add to its odometer, and Sawaari reminds you when the oil, chain or other service is due and before your insurance or PUC expires.",
+            ),
+            TourTab.GARAGE, "Open garage",
+        ),
+        TourStep(
             Icons.Default.Flag, "You're ready to ride",
             listOf(
-                "Quick checklist: maps downloaded, SOS contacts added, group joined.",
+                "Quick checklist: maps downloaded, SOS contacts added, crash detection on, group joined.",
                 "Like different colours? Pick a colour theme below, or later in the Settings tab.",
                 "Ride safe. Tap ? on the map whenever you want this tour again.",
             ),
