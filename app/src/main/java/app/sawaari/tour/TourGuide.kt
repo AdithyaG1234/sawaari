@@ -102,7 +102,8 @@ object TourGuide {
         TourStep(
             Icons.Default.Groups, "4. Ride as a group",
             listOf(
-                "In the Group tab, the leader taps Create group and shares the 6-letter code. Others enter it to join.",
+                "In the Group tab, the leader taps Create group, adds the route (paste a Google Maps link or plan it on the map) and shares the 6-letter code. Already planned a route? Tap \"Create a group for this route\" on the route card.",
+                "Riders enter the code to join, and the route loads on their map, even if they join later.",
                 "Everyone shows live on the map, even with the screen off. Tap a rider to call them or see their emergency contact.",
                 "The leader can set a meeting point with date and time, share the ride plan, and give riders roles: Sweep (the last rider), Marshal or Medic.",
             ),
@@ -143,10 +144,10 @@ object TourGuide {
             TourTab.MAP, "Go to the map",
         ),
         TourStep(
-            Icons.Default.Timeline, "9. Your rides and your bike",
+            Icons.Default.Timeline, "9. Your rides and your vehicles",
             listOf(
                 "Every ride you navigate or ride with a group is saved with its distance, riding time and speeds. See them in Settings, Ride history and stats.",
-                "Add your bike in Settings, Bikes and service. Rides add to its odometer, and Sawaari reminds you when the oil, chain or other service is due and before your insurance or PUC expires.",
+                "Add your motorcycle, car or bicycle in Settings, Vehicles and service. Rides add to its odometer, and Sawaari reminds you when the oil, chain or other service is due and before your insurance or PUC expires.",
             ),
             TourTab.GARAGE, "Open garage",
         ),

@@ -37,9 +37,9 @@ object Garage {
 
     fun odometer(bike: Bike, rides: List<SavedRide> = RideRecorder.rides.value) = GarageLogic.odometer(bike, riddenKm(bike, rides))
 
-    fun addBike(name: String, odoKm: Double) {
+    fun addBike(name: String, odoKm: Double, kind: VehicleKind = VehicleKind.MOTORCYCLE) {
         val now = System.currentTimeMillis()
-        val bike = Bike(now, name.trim().ifBlank { "My bike" }, odoKm, GarageLogic.defaultItems(odoKm, now))
+        val bike = Bike(now, name.trim().ifBlank { "My ${kind.label.lowercase()}" }, odoKm, GarageLogic.defaultItems(odoKm, now, kind), kind = kind)
         save(_state.value.copy(bikes = _state.value.bikes + bike, currentId = bike.id))
     }
 
@@ -94,7 +94,7 @@ object Garage {
                 )
             }
             val papers = JSONObject().apply { b.papers.forEach { (k, v) -> put(k, v) } }
-            bikes.put(JSONObject().put("id", b.id).put("name", b.name).put("baseKm", b.baseKm).put("items", items).put("papers", papers))
+            bikes.put(JSONObject().put("id", b.id).put("name", b.name).put("baseKm", b.baseKm).put("items", items).put("papers", papers).put("kind", b.kind.name))
         }
         return JSONObject().put("current", s.currentId).put("bikes", bikes).toString()
     }
@@ -115,7 +115,7 @@ object Garage {
             }
             val po = b.optJSONObject("papers") ?: JSONObject()
             val papers = po.keys().asSequence().associateWith { po.getLong(it) }
-            Bike(b.getLong("id"), b.getString("name"), b.optDouble("baseKm", 0.0), items, papers)
+            Bike(b.getLong("id"), b.getString("name"), b.optDouble("baseKm", 0.0), items, papers, VehicleKind.of(b.optString("kind")))
         }
         return GarageState(bikes, o.optLong("current"))
     }

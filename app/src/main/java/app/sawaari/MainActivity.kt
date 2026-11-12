@@ -225,6 +225,12 @@ class MainActivity : ComponentActivity() {
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
+                            inGroup = group != null,
+                            onCreateGroup = { name ->
+                                groups.setMyName(myName.ifBlank { "Rider" })
+                                groups.create(name.ifBlank { "Weekend ride" })
+                                tab = 2
+                            },
                         )
                         if (tab == 4) Surface(Modifier.fillMaxSize()) {
                             SettingsScreen(
@@ -256,6 +262,9 @@ class MainActivity : ComponentActivity() {
                                 groups, myPosition, Modifier.fillMaxSize(),
                                 sosContacts = sosContacts,
                                 onRideTo = { rideTo = it; tab = 0 },
+                                onPlanOnMap = { tab = 0 },
+                                onImportLink = { incomingLink.value = it; tab = 0 },
+                                onShowRoute = { tab = 0 },
                             )
                         }
                         if (tab == 1) Surface(Modifier.fillMaxSize()) {

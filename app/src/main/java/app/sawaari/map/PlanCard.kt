@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.material.icons.filled.Groups
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -75,6 +76,7 @@ internal fun RouteCard(
     sharedPlan: RidePlan?,
     onShareRoute: () -> Unit,
     onFindNearby: (String) -> Unit,
+    onCreateGroup: (() -> Unit)? = null,
 ) {
     val plan = nav.plan
     val r = nav.route
@@ -181,6 +183,12 @@ internal fun RouteCard(
                 TextButton(onClick = { onShare(plan) }, enabled = !shared) {
                     Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp))
                     Text(if (shared) "Shared with your group" else "Share plan with group")
+                }
+            }
+            if (expanded && onCreateGroup != null && plan.end != null) {
+                androidx.compose.material3.FilledTonalButton(onClick = onCreateGroup, modifier = Modifier.fillMaxWidth()) {
+                    Icon(androidx.compose.material.icons.Icons.Default.Groups, null); Spacer(Modifier.width(8.dp))
+                    Text("Riding with friends? Create a group for this route")
                 }
             }
         }

@@ -5,6 +5,9 @@ import app.sawaari.garage.GarageLogic
 import app.sawaari.garage.GarageLogic.DAY_MS
 import app.sawaari.garage.Level
 import app.sawaari.garage.ServiceItem
+import app.sawaari.garage.VehicleKind
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -56,5 +59,14 @@ class GarageLogicTest {
         val bike = Bike(1, "Bike", base, emptyList())
         assertEquals(20_000.0, GarageLogic.odometer(bike, 350.0), 0.001)
         assertEquals(20_120.0, GarageLogic.odometer(bike, 470.0), 0.001)
+    }
+
+    @Test fun eachVehicleKindHasItsOwnJobs() {
+        val car = GarageLogic.defaultItems(0.0, t0, VehicleKind.CAR).map { it.name }
+        val cycle = GarageLogic.defaultItems(0.0, t0, VehicleKind.BICYCLE).map { it.name }
+        assertTrue("Coolant" in car)
+        assertFalse(cycle.any { "oil" in it.lowercase() })
+        assertFalse(VehicleKind.BICYCLE.hasPapers)
+        assertEquals(VehicleKind.MOTORCYCLE, VehicleKind.of(null)) // garages saved before vehicle kinds existed
     }
 }
