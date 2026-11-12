@@ -68,6 +68,8 @@ fun GroupScreen(
     onImportLink: (String) -> Unit = {},
     /** Show the group's route on the map. */
     onShowRoute: () -> Unit = {},
+    /** Show the "Plan a trip" step above create/join (used in the floating ride window). */
+    showPlanTrip: Boolean = false,
 ) {
     var selected by remember { mutableStateOf<Rider?>(null) }
     val group by repo.group.collectAsState()
@@ -128,6 +130,7 @@ fun GroupScreen(
 
         val g = group
         if (g == null) {
+            if (showPlanTrip) item { PlanTripCard(onPlanOnMap, onImportLink) }
             item {
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -392,28 +395,50 @@ private fun RouteStep(
             }
         }
     }
-    if (pasting) {
-        val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-        var link by remember { mutableStateOf(clipboard.getText()?.text?.takeIf { "http" in it || "," in it }.orEmpty()) }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { pasting = false },
-            title = { Text("Route from Google Maps") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        "In Google Maps, plan the route with your stops, tap Share and copy the link. Then paste it here. It opens on the offline map and is shared with the group.",
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    OutlinedTextField(
-                        value = link, onValueChange = { link = it }, label = { Text("Google Maps link") },
-                        modifier = Modifier.fillMaxWidth(), maxLines = 3,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(enabled = link.isNotBlank(), onClick = { onImportLink(link.trim()); pasting = false }) { Text("Load route") }
-            },
-            dismissButton = { TextButton(onClick = { pasting = false }) { Text("Cancel") } },
-        )
+    if (pasting) PasteRouteDialog(onDismiss = { pasting = false }, onLoad = { onImportLink(it); pasting = false })
+}
+
+
+/** First step of a ride with no group yet: plan the trip on the map or paste a Google Maps route. */
+@Composable
+private fun PlanTripCard(onPlanOnMap: () -> Unit, onImportLink: (String) -> Unit) {
+    var pasting by remember { mutableStateOf(false) }
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("1. Plan the trip", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "Search a place or long-press the map to add a start, stops and destination, or paste a route from Google Maps. Then create a group below and the route goes to every rider.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(onClick = onPlanOnMap) { Text("Plan on map") }
+                OutlinedButton(onClick = { pasting = true }) { Text("Paste Google Maps link") }
+            }
+        }
     }
+    if (pasting) PasteRouteDialog(onDismiss = { pasting = false }, onLoad = { onImportLink(it); pasting = false })
+}
+
+@Composable
+private fun PasteRouteDialog(onDismiss: () -> Unit, onLoad: (String) -> Unit) {
+    val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
+    var link by remember { mutableStateOf(clipboard.getText()?.text?.takeIf { "http" in it || "," in it }.orEmpty()) }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Route from Google Maps") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "In Google Maps, plan the route with your stops, tap Share and copy the link. Then paste it here. It opens on the offline map, and in a group it's shared with every rider.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                OutlinedTextField(
+                    value = link, onValueChange = { link = it }, label = { Text("Google Maps link") },
+                    modifier = Modifier.fillMaxWidth(), maxLines = 3,
+                )
+            }
+        },
+        confirmButton = { TextButton(enabled = link.isNotBlank(), onClick = { onLoad(link.trim()) }) { Text("Load route") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }
