@@ -17,6 +17,9 @@ import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
 import app.sawaari.garage.GarageReminders
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,6 +36,8 @@ import app.sawaari.ui.theme.ThemeOptions
 
 @Composable
 fun SettingsScreen(
+    myName: String,
+    onMyName: (String) -> Unit,
     palette: AppPalette,
     mode: DarkMode,
     onPalette: (AppPalette) -> Unit,
@@ -49,7 +54,19 @@ fun SettingsScreen(
         modifier.verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Profile and settings", style = MaterialTheme.typography.headlineSmall)
+        var nameDraft by remember(myName) { mutableStateOf(myName) }
+        androidx.compose.material3.OutlinedTextField(
+            value = nameDraft,
+            onValueChange = { nameDraft = it.take(40) },
+            label = { Text("Your name (shown to your group)") },
+            singleLine = true,
+            trailingIcon = {
+                if (nameDraft.trim() != myName && nameDraft.isNotBlank()) androidx.compose.material3.TextButton(onClick = { onMyName(nameDraft) }) { Text("Save") }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        )
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Ride group and offline maps", style = MaterialTheme.typography.titleMedium)
         Text(
             "Create or join a ride group, and download maps and directions for areas with no signal. The Ride button on the map opens your group too.",

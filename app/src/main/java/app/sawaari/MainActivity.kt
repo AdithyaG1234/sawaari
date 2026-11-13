@@ -13,7 +13,11 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.Composable
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.HealthAndSafety
@@ -167,35 +171,8 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                // No bottom bar: the map is home. Profile (top right, next to search) opens everything else; SOS floats bottom right.
                 Scaffold(
-                    bottomBar = {
-                        NavigationBar {
-                            NavigationBarItem(
-                                selected = tab == 0, onClick = { tab = 0 },
-                                icon = { Icon(Icons.Default.Map, null) }, label = { Text("Map") },
-                            )
-                            // Group and Offline maps open from Settings (and the Ride button on the map).
-                            NavigationBarItem(
-                                selected = tab != 0, onClick = { tab = 4 },
-                                icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") },
-                            )
-                            // The emergency button lives in the bar, next to Settings, on every screen.
-                            Box(Modifier.weight(1f).height(80.dp), contentAlignment = Alignment.Center) {
-                                Surface(
-                                    onClick = pressSos,
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = Color(0xFFD32F2F),
-                                    contentColor = Color.White,
-                                    shadowElevation = 3.dp,
-                                    modifier = Modifier.size(width = 64.dp, height = 48.dp),
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Text("SOS", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
-                                    }
-                                }
-                            }
-                        }
-                    },
                 ) { padding ->
                     // The map stays composed under the other tab so navigation keeps running.
                     Box(Modifier.padding(padding).fillMaxSize()) {
@@ -223,6 +200,8 @@ class MainActivity : ComponentActivity() {
                             importLink = incomingLink.value,
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
+                            onProfile = { tab = 4 },
+                            onSosPressed = pressSos,
                             inGroup = group != null,
                             showRouteRequest = showRouteRequest,
                             onCreateGroup = { name ->
@@ -239,8 +218,10 @@ class MainActivity : ComponentActivity() {
                             onShowRoute = { showRouteRequest++ },
                             onRideTo = { rideTo = it },
                         )
-                        if (tab == 4) Surface(Modifier.fillMaxSize()) {
+                        androidx.activity.compose.BackHandler(enabled = tab == 4) { tab = 0 }
+                        if (tab == 4) SubScreen("Map", onBack = { tab = 0 }) {
                             SettingsScreen(
+                                myName = myName, onMyName = { groups.setMyName(it) },
                                 palette = palette, mode = darkMode,
                                 onPalette = { ThemeSettings.setPalette(applicationContext, it) },
                                 onMode = { ThemeSettings.setMode(applicationContext, it) },
@@ -255,19 +236,19 @@ class MainActivity : ComponentActivity() {
                         }
                         androidx.activity.compose.BackHandler(enabled = tab == 1 || tab == 2) { tab = if (backToSettings) 4 else 0 }
                         androidx.activity.compose.BackHandler(enabled = tab == 6) { tab = 4 }
-                        if (tab == 6) Surface(Modifier.fillMaxSize()) {
+                        if (tab == 6) SubScreen("Profile", onBack = { tab = 4 }) {
                             GarageScreen(Modifier.fillMaxSize())
                         }
                         androidx.activity.compose.BackHandler(enabled = tab == 5) { tab = 4 }
-                        if (tab == 5) Surface(Modifier.fillMaxSize()) {
+                        if (tab == 5) SubScreen("Profile", onBack = { tab = 4 }) {
                             RideHistoryScreen(Modifier.fillMaxSize())
                         }
                         // SOS setup opens from Settings, so Back returns there.
                         androidx.activity.compose.BackHandler(enabled = tab == 3) { tab = 4 }
-                        if (tab == 3) Surface(Modifier.fillMaxSize()) {
+                        if (tab == 3) SubScreen("Profile", onBack = { tab = 4 }) {
                             SosScreen(sosSettings, Modifier.fillMaxSize())
                         }
-                        if (tab == 2) Surface(Modifier.fillMaxSize()) {
+                        if (tab == 2) SubScreen(if (backToSettings) "Profile" else "Map", onBack = { tab = if (backToSettings) 4 else 0 }) {
                             GroupScreen(
                                 groups, myPosition, Modifier.fillMaxSize(),
                                 sosContacts = sosContacts,
@@ -277,7 +258,7 @@ class MainActivity : ComponentActivity() {
                                 onShowRoute = { tab = 0; showRouteRequest++ },
                             )
                         }
-                        if (tab == 1) Surface(Modifier.fillMaxSize()) {
+                        if (tab == 1) SubScreen(if (backToSettings) "Profile" else "Map", onBack = { tab = if (backToSettings) 4 else 0 }) {
                             DownloadsScreen(
                                 downloads = downloads,
                                 onDownloadPreset = repo::download,
@@ -398,6 +379,22 @@ class MainActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+}
+
+
+/** A full screen over the map with a back arrow at the top, e.g. Profile or Offline maps. */
+@Composable
+private fun SubScreen(backTo: String, onBack: () -> Unit, content: @Composable () -> Unit) {
+    Surface(Modifier.fillMaxSize()) {
+        androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
+            androidx.compose.material3.TextButton(onClick = onBack, modifier = Modifier.padding(start = 4.dp, top = 4.dp)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null)
+                androidx.compose.foundation.layout.Spacer(Modifier.width(8.dp))
+                Text(backTo)
+            }
+            Box(Modifier.weight(1f).fillMaxWidth()) { content() }
         }
     }
 }
