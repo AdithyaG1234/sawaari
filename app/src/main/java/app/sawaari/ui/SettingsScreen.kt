@@ -13,6 +13,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.HealthAndSafety
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.TwoWheeler
 import androidx.compose.runtime.remember
 import app.sawaari.garage.GarageReminders
@@ -39,6 +41,8 @@ fun SettingsScreen(
     onSosSetup: () -> Unit,
     onRideHistory: () -> Unit,
     onGarage: () -> Unit,
+    onGroup: () -> Unit,
+    onOfflineMaps: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -46,6 +50,18 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Ride group and offline maps", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Create or join a ride group, and download maps and directions for areas with no signal. The Ride button on the map opens your group too.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(onClick = onGroup, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Groups, null); Spacer(Modifier.width(8.dp)); Text("Ride group")
+        }
+        OutlinedButton(onClick = onOfflineMaps, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.DownloadForOffline, null); Spacer(Modifier.width(8.dp)); Text("Offline maps and navigation")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Emergency SOS", style = MaterialTheme.typography.titleMedium)
         Text(
             "Emergency contacts, medical info and SMS permission for the red SOS button.",

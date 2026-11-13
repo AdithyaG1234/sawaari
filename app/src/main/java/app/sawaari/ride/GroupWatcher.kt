@@ -91,8 +91,8 @@ class GroupWatcher(
                     RideAlert(
                         "silent:${r.uid}", "No signal from $who",
                         "Last update ${age / 60_000} min ago." + when (r.role) {
-                            Role.LEADER -> " If they need help, the sweep or any rider can take over as leader in the Group tab."
-                            Role.SWEEP -> " The leader can pick a new sweep in the Group tab."
+                            Role.LEADER -> " If they need help, the sweep or any rider can take over as leader in the Ride window on the map."
+                            Role.SWEEP -> " The leader can pick a new sweep in the Ride window on the map."
                             else -> ""
                         },
                         urgent = keyRole,

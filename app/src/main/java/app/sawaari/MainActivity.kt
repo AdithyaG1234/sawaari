@@ -117,6 +117,10 @@ class MainActivity : ComponentActivity() {
                 var sosResult by remember { mutableStateOf<String?>(null) }
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
+                var showRouteRequest by remember { mutableIntStateOf(0) }
+                // Group and Offline maps go Back to Settings when opened from there, else to the map.
+                var backToSettings by remember { mutableStateOf(false) }
+                LaunchedEffect(tab) { if (tab == 0 || tab == 4) backToSettings = false }
                 val app = application as SawaariApp
                 var showThemes by rememberSaveable { mutableStateOf(false) }
                 var showTour by rememberSaveable { mutableStateOf(TourGuide.shouldShow(applicationContext)) }
@@ -170,16 +174,9 @@ class MainActivity : ComponentActivity() {
                                 selected = tab == 0, onClick = { tab = 0 },
                                 icon = { Icon(Icons.Default.Map, null) }, label = { Text("Map") },
                             )
+                            // Group and Offline maps open from Settings (and the Ride button on the map).
                             NavigationBarItem(
-                                selected = tab == 2, onClick = { tab = 2 },
-                                icon = { Icon(Icons.Default.Groups, null) }, label = { Text("Group") },
-                            )
-                            NavigationBarItem(
-                                selected = tab == 1, onClick = { tab = 1 },
-                                icon = { Icon(Icons.Default.DownloadForOffline, null) }, label = { Text("Offline") },
-                            )
-                            NavigationBarItem(
-                                selected = tab == 4, onClick = { tab = 4 },
+                                selected = tab != 0, onClick = { tab = 4 },
                                 icon = { Icon(Icons.Default.Settings, null) }, label = { Text("Settings") },
                             )
                             // The emergency button lives in the bar, next to Settings, on every screen.
@@ -227,6 +224,7 @@ class MainActivity : ComponentActivity() {
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
                             inGroup = group != null,
+                            showRouteRequest = showRouteRequest,
                             onCreateGroup = { name ->
                                 groups.setMyName(myName.ifBlank { "Rider" })
                                 groups.create(name.ifBlank { "Weekend ride" })
@@ -238,7 +236,7 @@ class MainActivity : ComponentActivity() {
                             groups, myPosition, sosContacts,
                             onPlanOnMap = {},
                             onImportLink = { incomingLink.value = it },
-                            onShowRoute = {},
+                            onShowRoute = { showRouteRequest++ },
                             onRideTo = { rideTo = it },
                         )
                         if (tab == 4) Surface(Modifier.fillMaxSize()) {
@@ -249,10 +247,13 @@ class MainActivity : ComponentActivity() {
                                 onTourGuide = { showTour = true },
                                 onSosSetup = { tab = 3 },
                                 onRideHistory = { tab = 5 },
+                                onGroup = { tab = 2; backToSettings = true },
+                                onOfflineMaps = { tab = 1; backToSettings = true },
                                 onGarage = { tab = 6 },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
+                        androidx.activity.compose.BackHandler(enabled = tab == 1 || tab == 2) { tab = if (backToSettings) 4 else 0 }
                         androidx.activity.compose.BackHandler(enabled = tab == 6) { tab = 4 }
                         if (tab == 6) Surface(Modifier.fillMaxSize()) {
                             GarageScreen(Modifier.fillMaxSize())
@@ -273,7 +274,7 @@ class MainActivity : ComponentActivity() {
                                 onRideTo = { rideTo = it; tab = 0 },
                                 onPlanOnMap = { tab = 0 },
                                 onImportLink = { incomingLink.value = it; tab = 0 },
-                                onShowRoute = { tab = 0 },
+                                onShowRoute = { tab = 0; showRouteRequest++ },
                             )
                         }
                         if (tab == 1) Surface(Modifier.fillMaxSize()) {
