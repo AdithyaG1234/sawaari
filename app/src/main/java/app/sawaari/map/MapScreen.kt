@@ -154,6 +154,8 @@ fun MapScreen(
     inGroup: Boolean = false,
     /** Starts a ride group for the planned route, named after its destination. */
     onCreateGroup: ((String) -> Unit)? = null,
+    /** Goes up by one each time the rider taps "Show route on map": load the group's route and fit the map to it. */
+    showRouteRequest: Int = 0,
 ) {
     val context = LocalContext.current
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
@@ -209,8 +211,21 @@ fun MapScreen(
     }
     var hiddenPlan by remember { mutableStateOf<RidePlan?>(null) }
     // A rider with no route of their own (for example, one who just joined) gets the group's route straight away.
-    LaunchedEffect(groupPlan, iAmLeader) {
-        if (groupPlan != null && !iAmLeader && !nav.navigating && nav.plan.isEmpty) { nav.loadPlan(groupPlan); hiddenPlan = groupPlan }
+    // (The leader too, e.g. after the app restarted: the plan lives in the group, not on the phone.)
+    LaunchedEffect(groupPlan) {
+        if (groupPlan != null && !nav.navigating && nav.plan.isEmpty) { nav.loadPlan(groupPlan); hiddenPlan = groupPlan }
+    }
+    LaunchedEffect(showRouteRequest) {
+        if (showRouteRequest == 0) return@LaunchedEffect
+        val p = groupPlan ?: return@LaunchedEffect
+        if (!nav.navigating && nav.plan != p) { nav.loadPlan(p); hiddenPlan = p }
+        // Fit the map to the route (or to the plan's points until the route is ready).
+        val pts = nav.route?.points?.takeIf { nav.plan == p && it.size >= 2 }
+            ?: (listOfNotNull(p.start ?: nav.myPosition) + p.stops + listOfNotNull(p.end))
+        if (pts.size >= 2) {
+            val b = LatLngBounds.Builder().apply { pts.forEach { include(LatLng(it.lat, it.lon)) } }.build()
+            map?.animateCamera(CameraUpdateFactory.newLatLngBounds(b, 120), 800)
+        } else pts.firstOrNull()?.let { map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(it.lat, it.lon), 12.0), 800) }
     }
     // The leader's first planned route is shared with the group automatically, so every rider gets it.
     LaunchedEffect(iAmLeader, groupPlan == null, nav.route) {

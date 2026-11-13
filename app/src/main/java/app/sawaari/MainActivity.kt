@@ -117,6 +117,7 @@ class MainActivity : ComponentActivity() {
                 var sosResult by remember { mutableStateOf<String?>(null) }
                 var tab by rememberSaveable { mutableIntStateOf(0) }
                 var rideTo by remember { mutableStateOf<GeoPoint?>(null) }
+                var showRouteRequest by remember { mutableIntStateOf(0) }
                 val app = application as SawaariApp
                 var showThemes by rememberSaveable { mutableStateOf(false) }
                 var showTour by rememberSaveable { mutableStateOf(TourGuide.shouldShow(applicationContext)) }
@@ -227,6 +228,7 @@ class MainActivity : ComponentActivity() {
                             onImportHandled = { incomingLink.value = null },
                             onTourGuide = { showTour = true },
                             inGroup = group != null,
+                            showRouteRequest = showRouteRequest,
                             onCreateGroup = { name ->
                                 groups.setMyName(myName.ifBlank { "Rider" })
                                 groups.create(name.ifBlank { "Weekend ride" })
@@ -238,7 +240,7 @@ class MainActivity : ComponentActivity() {
                             groups, myPosition, sosContacts,
                             onPlanOnMap = {},
                             onImportLink = { incomingLink.value = it },
-                            onShowRoute = {},
+                            onShowRoute = { showRouteRequest++ },
                             onRideTo = { rideTo = it },
                         )
                         if (tab == 4) Surface(Modifier.fillMaxSize()) {
@@ -273,7 +275,7 @@ class MainActivity : ComponentActivity() {
                                 onRideTo = { rideTo = it; tab = 0 },
                                 onPlanOnMap = { tab = 0 },
                                 onImportLink = { incomingLink.value = it; tab = 0 },
-                                onShowRoute = { tab = 0 },
+                                onShowRoute = { tab = 0; showRouteRequest++ },
                             )
                         }
                         if (tab == 1) Surface(Modifier.fillMaxSize()) {
