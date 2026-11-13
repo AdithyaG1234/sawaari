@@ -74,7 +74,7 @@ object TourGuide {
         TourStep(
             Icons.Default.DownloadForOffline, "1. Save maps before you ride",
             listOf(
-                "Open Settings, Offline maps and download the area you will ride in, or pan the map there and tap \"Save this map for offline use\".",
+                "Tap the profile button next to the search bar, open Offline maps and download the area you will ride in, or pan the map there and tap \"Save this map for offline use\".",
                 "Ready-made areas cover Karnataka, Kerala, Tamil Nadu, Goa, Maharashtra, Hyderabad, Delhi and Uttarakhand, Himachal and Ladakh, Kashmir, Rajasthan, Sikkim and Meghalaya.",
                 "Also download \"Offline navigation\" for that area so routes work with no signal.",
                 "Do this on Wi-Fi at home. The maps stay on the phone.",
@@ -102,7 +102,7 @@ object TourGuide {
         TourStep(
             Icons.Default.Groups, "4. Ride as a group",
             listOf(
-                "Tap the round Ride button on the map (or Settings, Ride group). The leader taps Create group, adds the route (paste a Google Maps link or plan it on the map) and shares the 6-letter code. Already planned a route? Tap \"Create a group for this route\" on the route card.",
+                "Tap the round Ride button on the map (or Profile, Ride group). The leader taps Create group, adds the route (paste a Google Maps link or plan it on the map) and shares the 6-letter code. Already planned a route? Tap \"Create a group for this route\" on the route card.",
                 "Riders enter the code to join, and the route loads on their map, even if they join later.",
                 "Everyone shows live on the map, even with the screen off. Tap a rider to call them or see their emergency contact.",
                 "The leader can set a meeting point with date and time, share the ride plan, and give riders roles: Sweep (the last rider), Marshal or Medic.",
@@ -129,8 +129,8 @@ object TourGuide {
         TourStep(
             Icons.Default.HealthAndSafety, "7. Set up SOS now",
             listOf(
-                "In Settings, tap Set up SOS contacts. Add emergency contacts and your blood group or medical notes, and allow SMS.",
-                "Press the red SOS button in the bottom bar, next to Settings. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
+                "In Profile (next to the search bar), tap Set up SOS contacts. Add emergency contacts and your blood group or medical notes, and allow SMS.",
+                "Press the red SOS button in the bottom-right corner of the map. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
                 "Turn on crash detection there too. After a hard impact it beeps for 30 seconds, then sends the SOS by itself unless you tap I'm OK.",
             ),
             TourTab.SOS, "Set up SOS",
@@ -146,8 +146,8 @@ object TourGuide {
         TourStep(
             Icons.Default.Timeline, "9. Your rides and your vehicles",
             listOf(
-                "Every ride you navigate or ride with a group is saved with its distance, riding time and speeds. See them in Settings, Ride history and stats.",
-                "Add your motorcycle, car or bicycle in Settings, Vehicles and service. Rides add to its odometer, and Sawaari reminds you when the oil, chain or other service is due and before your insurance or PUC expires.",
+                "Every ride you navigate or ride with a group is saved with its distance, riding time and speeds. See them in Profile, Ride history and stats.",
+                "Add your motorcycle, car or bicycle in Profile, Vehicles and service. Rides add to its odometer, and Sawaari reminds you when the oil, chain or other service is due and before your insurance or PUC expires.",
             ),
             TourTab.GARAGE, "Open garage",
         ),
@@ -155,7 +155,7 @@ object TourGuide {
             Icons.Default.Flag, "You're ready to ride",
             listOf(
                 "Quick checklist: maps downloaded, SOS contacts added, crash detection on, group joined.",
-                "Like different colours? Pick a colour theme below, or later in the Settings tab.",
+                "Like different colours? Pick a colour theme below, or later in Profile.",
                 "Ride safe. Tap ? on the map whenever you want this tour again.",
             ),
             action = "Choose app colours",

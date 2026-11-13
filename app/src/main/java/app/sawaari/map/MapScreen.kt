@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Surface
@@ -137,6 +138,8 @@ fun MapScreen(
     sosAlerts: List<SosAlert> = emptyList(),
     onDismissSos: (String) -> Unit = {},
     onSosPressed: () -> Unit = {},
+    /** Opens Profile: your name, ride group, offline maps and settings. */
+    onProfile: () -> Unit = {},
     groupPlan: RidePlan? = null,
     groupPlanBy: String = "",
     iAmLeader: Boolean = false,
@@ -405,8 +408,8 @@ fun MapScreen(
 
         Column(Modifier.align(Alignment.TopCenter).fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (nav.navigating) NavigationBanner(nav)
-            if (!nav.navigating && placeSearch != null) {
-                MapSearchBar(
+            if (!nav.navigating) Row(verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (placeSearch != null) MapSearchBar(
                     search = placeSearch,
                     near = { map?.cameraPosition?.target?.let { GeoPoint(it.latitude, it.longitude) } ?: nav.myPosition },
                     onPick = { r ->
@@ -419,7 +422,12 @@ fun MapScreen(
                     onOpenLinkSettings = { openLinkSettings(context) },
                     prefill = searchPrefill,
                     onPrefillUsed = { searchPrefill = null },
-                )
+                    modifier = Modifier.weight(1f),
+                ) else Spacer(Modifier.weight(1f))
+                androidx.compose.material3.FilledTonalIconButton(
+                    onClick = onProfile,
+                    modifier = Modifier.padding(top = 4.dp).size(52.dp),
+                ) { Icon(Icons.Default.AccountCircle, contentDescription = "Profile and settings", modifier = Modifier.size(32.dp)) }
             }
             if (groupPlan != null && !iAmLeader && !nav.navigating && groupPlan != nav.plan && groupPlan != hiddenPlan) {
                 SharedPlanBanner(
@@ -466,6 +474,20 @@ fun MapScreen(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             SnackbarHost(snackbar)
+            // Emergency button, always in the bottom-right corner of the map (it sits just above any card).
+            androidx.compose.material3.Surface(
+                onClick = onSosPressed,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+                color = androidx.compose.ui.graphics.Color(0xFFD32F2F),
+                contentColor = androidx.compose.ui.graphics.Color.White,
+                shadowElevation = 6.dp,
+                modifier = Modifier.align(Alignment.End).size(width = 72.dp, height = 56.dp),
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text("SOS", fontWeight = androidx.compose.ui.text.font.FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+            Spacer(Modifier.size(8.dp))
             if (nav.route != null && places != null) {
                 PlacesPanel(
                     selected = placeCategory, onSelect = { placeCategory = it },
