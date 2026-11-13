@@ -176,7 +176,7 @@ fun GroupScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(onClick = {
                             val text = buildString {
-                                append("Join my ride \"${g.name}\" on Sawaari. Open the Group tab and enter code ${g.code}. The route loads on your map when you join.\n")
+                                append("Join my ride \"${g.name}\" on Sawaari. Tap the Ride button on the map and enter code ${g.code}. The route loads on your map when you join.\n")
                                 g.plan?.let { p -> RouteLinks.googleLink(p)?.let { append("Route on Google Maps: ").append(it).append("\n") } }
                                 append("Get the app: https://github.com/AdithyaG1234/sawaari/releases/latest/download/sawaari.apk")
                             }
