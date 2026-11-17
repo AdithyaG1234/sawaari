@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -70,6 +70,25 @@ jobs:
         with:
           name: iphone-screenshots
           path: screenshots/
+      # Keep the latest screenshots for each branch on the "ios-screenshots" branch, so they can be
+      # viewed on GitHub (and shown in pull requests) without downloading the Actions artifact.
+      - name: Publish screenshots
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          DIR="${BRANCH//\//-}"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git clone --depth 1 --branch ios-screenshots "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" shots 2>/dev/null || {
+            git init -q shots && git -C shots checkout -q --orphan ios-screenshots
+            git -C shots remote add origin "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          }
+          mkdir -p "shots/$DIR" && cp screenshots/*.png "shots/$DIR/"
+          cd shots && git add -A
+          git commit -q -m "Screenshots for $BRANCH (${{ github.sha }})" || exit 0
+          git push -q origin ios-screenshots
+          echo "Screenshots: https://github.com/${{ github.repository }}/tree/ios-screenshots/$DIR"
       - name: Zip the simulator app
         run: cd iosApp/build/Build/Products/Debug-iphonesimulator && zip -qr "$GITHUB_WORKSPACE/Sawaari-simulator.zip" Sawaari.app
       - uses: actions/upload-artifact@v5
