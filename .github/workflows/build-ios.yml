@@ -43,7 +43,7 @@ jobs:
           set -o pipefail
           xcodebuild -project iosApp/Sawaari.xcodeproj -scheme Sawaari -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
-            -derivedDataPath iosApp/build CODE_SIGNING_ALLOWED=NO build | tail -n 40
+            -derivedDataPath iosApp/build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build | tail -n 40
           test -x iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app/Sawaari
       - name: Run it in the simulator and take screenshots
         run: |
