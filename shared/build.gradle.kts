@@ -40,3 +40,7 @@ kotlin {
 composeCompiler {
     targetKotlinPlatforms.set(setOf(org.jetbrains.kotlin.gradle.plugin.KotlinPlatformType.native))
 }
+
+// The shared module has no Compose resource files yet (images, strings), and the resource sync task
+// fails when Xcode runs it without any. Turn it back on when the first resource is added.
+tasks.matching { it.name == "syncComposeResourcesForIos" }.configureEach { enabled = false }

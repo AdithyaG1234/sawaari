@@ -40,10 +40,11 @@ jobs:
         run: brew install xcodegen && cd iosApp && xcodegen generate
       - name: Build the app for the simulator
         run: |
+          set -o pipefail
           xcodebuild -project iosApp/Sawaari.xcodeproj -scheme Sawaari -configuration Debug \
             -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
             -derivedDataPath iosApp/build CODE_SIGNING_ALLOWED=NO build | tail -n 40
-          test -d iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app
+          test -x iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app/Sawaari
       - name: Run it in the simulator and take screenshots
         run: |
           mkdir -p screenshots
