@@ -1,0 +1,77 @@
+name: Build iPhone app
+
+# Builds the iPhone app on GitHub's free Mac machines (free for public repos), runs the shared
+# tests on the iPhone simulator, then opens the app in the simulator and saves screenshots.
+# No Apple account is needed for any of this. Installing on a real iPhone (TestFlight) comes later.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ios:
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v5
+      - name: Pick Xcode
+        run: sudo xcode-select -s /Applications/Xcode_16.4.app && xcodebuild -version
+      - uses: actions/cache@v4
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ hashFiles('build.gradle.kts', 'shared/build.gradle.kts') }}
+      - name: Shared tests on the iPhone simulator
+        run: chmod +x gradlew && ./gradlew :shared:iosSimulatorArm64Test --stacktrace
+      - name: Generate the Xcode project
+        run: brew install xcodegen && cd iosApp && xcodegen generate
+      - name: Build the app for the simulator
+        run: |
+          xcodebuild -project iosApp/Sawaari.xcodeproj -scheme Sawaari -configuration Debug \
+            -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' \
+            -derivedDataPath iosApp/build CODE_SIGNING_ALLOWED=NO build | tail -n 40
+          test -d iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app
+      - name: Run it in the simulator and take screenshots
+        run: |
+          mkdir -p screenshots
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone 16')))")
+          echo "Simulator: $DEVICE"
+          xcrun simctl boot "$DEVICE"
+          xcrun simctl bootstatus "$DEVICE" -b
+          xcrun simctl install "$DEVICE" iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app
+          xcrun simctl ui "$DEVICE" appearance light
+          xcrun simctl launch "$DEVICE" app.sawaari
+          sleep 12
+          xcrun simctl io "$DEVICE" screenshot screenshots/light.png
+          xcrun simctl terminate "$DEVICE" app.sawaari
+          xcrun simctl ui "$DEVICE" appearance dark
+          xcrun simctl launch "$DEVICE" app.sawaari
+          sleep 8
+          xcrun simctl io "$DEVICE" screenshot screenshots/dark.png
+          # Fail if the app crashed instead of showing its screen.
+          xcrun simctl spawn "$DEVICE" launchctl list | grep -q app.sawaari
+          ls -l screenshots
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: iphone-screenshots
+          path: screenshots/
+      - name: Zip the simulator app
+        run: cd iosApp/build/Build/Products/Debug-iphonesimulator && zip -qr "$GITHUB_WORKSPACE/Sawaari-simulator.zip" Sawaari.app
+      - uses: actions/upload-artifact@v5
+        with:
+          name: sawaari-ios-simulator-app
+          path: Sawaari-simulator.zip

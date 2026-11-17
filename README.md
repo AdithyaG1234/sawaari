@@ -11,6 +11,12 @@ An Android app for motorcycle riders on weekend group trips: offline maps, navig
 
 Map data © OpenStreetMap contributors.
 
+## iPhone version (in progress)
+The iPhone app is being built step by step in the same repo, sharing code with Android through Kotlin Multiplatform:
+- `shared/`: ride logic used by both apps (routes, navigation tracking, group alerts, ride stats, garage, route links). Its tests run on the JVM and on the iPhone simulator.
+- `iosApp/`: the iPhone app shell (SwiftUI + Compose Multiplatform). The Xcode project is generated from `iosApp/project.yml` with XcodeGen.
+- `build-ios.yml` builds it on GitHub's Mac machines, runs it in the iPhone simulator and saves screenshots. No Apple account is needed until it goes on TestFlight.
+
 ## Features
 - **Offline maps:** download the visible area, or pick from one-tap ride areas across India. These include Coorg, Ooty and Munnar, Goa and the Konkan, Gokarna, Kerala, Pondicherry, Hyderabad and Srisailam, Rishikesh and Chopta, Rajasthan, Manali to Leh, Spiti, Kashmir, Sikkim and Meghalaya. Downloaded maps work with no network.
 - **Offline navigation:** turn-by-turn voice directions are worked out on the phone (GraphHopper), with automatic rerouting. Each area also has offline places along the route: food, fuel, mechanics, tyre shops and hospitals.

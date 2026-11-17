@@ -12,21 +12,21 @@ private const val EARTH_RADIUS_M = 6_371_000.0
 
 /** Great-circle distance in metres. */
 fun distanceMeters(a: GeoPoint, b: GeoPoint): Double {
-    val dLat = Math.toRadians(b.lat - a.lat)
-    val dLon = Math.toRadians(b.lon - a.lon)
+    val dLat = toRadians(b.lat - a.lat)
+    val dLon = toRadians(b.lon - a.lon)
     val h = sin(dLat / 2) * sin(dLat / 2) +
-        cos(Math.toRadians(a.lat)) * cos(Math.toRadians(b.lat)) * sin(dLon / 2) * sin(dLon / 2)
+        cos(toRadians(a.lat)) * cos(toRadians(b.lat)) * sin(dLon / 2) * sin(dLon / 2)
     return 2 * EARTH_RADIUS_M * atan2(sqrt(h), sqrt(1 - h))
 }
 
 /** Initial compass bearing from [a] to [b], 0-360 degrees. */
 fun bearingDegrees(a: GeoPoint, b: GeoPoint): Double {
-    val lat1 = Math.toRadians(a.lat)
-    val lat2 = Math.toRadians(b.lat)
-    val dLon = Math.toRadians(b.lon - a.lon)
+    val lat1 = toRadians(a.lat)
+    val lat2 = toRadians(b.lat)
+    val dLon = toRadians(b.lon - a.lon)
     val y = sin(dLon) * cos(lat2)
     val x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon)
-    return (Math.toDegrees(atan2(y, x)) + 360) % 360
+    return (toDegrees(atan2(y, x)) + 360) % 360
 }
 
 /** Result of projecting a point onto a segment. */
@@ -37,7 +37,7 @@ data class Projection(val point: GeoPoint, val fraction: Double, val distance: D
  * which is accurate to well under a metre for road-length segments.
  */
 fun projectOntoSegment(p: GeoPoint, a: GeoPoint, b: GeoPoint): Projection {
-    val cosLat = cos(Math.toRadians(a.lat))
+    val cosLat = cos(toRadians(a.lat))
     val ax = 0.0; val ay = 0.0
     val bx = (b.lon - a.lon) * cosLat; val by = b.lat - a.lat
     val px = (p.lon - a.lon) * cosLat; val py = p.lat - a.lat
@@ -57,3 +57,10 @@ fun distanceToPolyline(p: GeoPoint, line: List<GeoPoint>): Double? {
     }
     return best
 }
+
+// Same constants as java.lang.Math, so results match the Android build bit for bit.
+private const val DEGREES_TO_RADIANS = 0.017453292519943295
+private const val RADIANS_TO_DEGREES = 57.29577951308232
+
+internal fun toRadians(deg: Double) = deg * DEGREES_TO_RADIANS
+internal fun toDegrees(rad: Double) = rad * RADIANS_TO_DEGREES

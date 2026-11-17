@@ -9,3 +9,10 @@ build/
 .cxx
 *.apk
 *.aab
+# iPhone app: the Xcode project is generated from iosApp/project.yml
+iosApp/Sawaari.xcodeproj/
+iosApp/build/
+iosApp/Sawaari/Info.plist
+*.xcuserstate
+xcuserdata/
+.kotlin/

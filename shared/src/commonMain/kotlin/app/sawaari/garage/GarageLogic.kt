@@ -109,7 +109,7 @@ object GarageLogic {
     /** The base to store so the odometer reads [newOdoKm] now. */
     fun baseFor(newOdoKm: Double, riddenKm: Double) = newOdoKm - riddenKm
 
-    private fun km(v: Double) = String.format(java.util.Locale.ENGLISH, "%,d km", v.toLong().coerceAtLeast(1))
+    private fun km(v: Double) = "${app.sawaari.util.Text.grouped(v.toLong().coerceAtLeast(1))} km"
     private fun days(v: Double): String {
         val d = v.toLong().coerceAtLeast(1)
         return when {
