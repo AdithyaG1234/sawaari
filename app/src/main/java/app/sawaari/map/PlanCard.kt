@@ -121,8 +121,8 @@ internal fun RouteCard(
             if (expanded) {
                 val startText = when {
                     plan.start == null -> "Your location"
-                    nav.myPosition?.let { distanceMeters(it, plan.start) < 200 } == true -> "Your location"
-                    else -> pointName(plan.start, nav, places)
+                    nav.myPosition?.let { distanceMeters(it, plan.start!!) < 200 } == true -> "Your location"
+                    else -> pointName(plan.start!!, nav, places)
                 }
                 PlanRow("S", START_COLOR, "Start: $startText", plan.start?.let { nav.problems[it] },
                     onRemove = plan.start?.let { { nav.setStart(null) } })

@@ -326,7 +326,7 @@ fun GroupScreen(
         val live = group?.riders?.firstOrNull { it.uid == r.uid } ?: r
         RiderDetailsDialog(
             live, myPosition,
-            onNavigate = if (live.lat != null && live.lon != null) ({ onRideTo(GeoPoint(live.lat, live.lon)) }) else null,
+            onNavigate = if (live.lat != null && live.lon != null) ({ onRideTo(GeoPoint(live.lat!!, live.lon!!)) }) else null,
             onDismiss = { selected = null },
         )
     }
@@ -342,7 +342,7 @@ private fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): Stri
     val ageMin = ((now - r.updatedAt) / 60_000).coerceAtLeast(0)
     val age = if (ageMin < 1) "just now" else "$ageMin min ago"
     val parts = mutableListOf<String>()
-    if (!isMe && me != null) parts += "${formatDistance(distanceMeters(me, GeoPoint(r.lat, r.lon)))} away"
+    if (!isMe && me != null) parts += "${formatDistance(distanceMeters(me, GeoPoint(r.lat!!, r.lon!!)))} away"
     if (r.speedKmh >= 3) parts += "${r.speedKmh.toInt()} km/h"
     parts += "updated $age"
     return flags + parts.joinToString(" · ")

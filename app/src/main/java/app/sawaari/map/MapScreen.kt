@@ -443,7 +443,7 @@ fun MapScreen(
                     myPosition = nav.myPosition,
                     onNavigate = {
                         if (a.lat != null && a.lon != null) {
-                            nav.loadPlan(RidePlan(end = GeoPoint(a.lat, a.lon)))
+                            nav.loadPlan(RidePlan(end = GeoPoint(a.lat!!, a.lon!!)))
                         }
                     },
                     onDismiss = { onDismissSos(a.id) },
@@ -555,7 +555,7 @@ fun MapScreen(
         if (r == null) tappedRider = null
         else RiderDetailsDialog(
             r, nav.myPosition,
-            onNavigate = if (r.lat != null && r.lon != null) ({ nav.loadPlan(RidePlan(end = GeoPoint(r.lat, r.lon))) }) else null,
+            onNavigate = if (r.lat != null && r.lon != null) ({ nav.loadPlan(RidePlan(end = GeoPoint(r.lat!!, r.lon!!))) }) else null,
             onDismiss = { tappedRider = null },
         )
     }
@@ -622,7 +622,7 @@ private fun SosBanner(alert: SosAlert, myPosition: GeoPoint?, onNavigate: () -> 
             Text("SOS from ${alert.name}", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             val ageMin = ((System.currentTimeMillis() - alert.ts) / 60_000).coerceAtLeast(0)
             val where = if (alert.lat != null && alert.lon != null && myPosition != null)
-                "${formatDistance(app.sawaari.geo.distanceMeters(myPosition, GeoPoint(alert.lat, alert.lon)))} away · " else ""
+                "${formatDistance(app.sawaari.geo.distanceMeters(myPosition, GeoPoint(alert.lat!!, alert.lon!!)))} away · " else ""
             Text("$where${if (ageMin < 1) "just now" else "$ageMin min ago"}")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (alert.lat != null && alert.lon != null) {
