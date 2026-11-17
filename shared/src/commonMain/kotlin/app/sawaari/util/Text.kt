@@ -36,11 +36,11 @@ object Text {
         }
         val keep = (plainInt + plainFrac.padEnd(decimals, '0').take(decimals)).toCharArray()
         val roundUp = plainFrac.length > decimals && plainFrac[decimals] >= '5'
-        var out = String(keep)
+        var out = keep.concatToString()
         if (roundUp) {
             var i = keep.size - 1
             while (i >= 0 && keep[i] == '9') { keep[i] = '0'; i-- }
-            out = if (i >= 0) { keep[i] = keep[i] + 1; String(keep) } else "1" + String(keep)
+            out = if (i >= 0) { keep[i] = keep[i] + 1; keep.concatToString() } else "1" + keep.concatToString()
         }
         val intLen = out.length - decimals
         val body = if (decimals == 0) out else out.substring(0, intLen) + "." + out.substring(intLen)
