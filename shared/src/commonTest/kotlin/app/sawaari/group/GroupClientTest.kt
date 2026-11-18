@@ -33,7 +33,9 @@ class FakeBackend(private var uid: String) : GroupBackend {
         set(path, json?.let { Json.parseToJsonElement(it) }); callback(null)
     }
     override fun update(path: String, json: String, callback: (String?) -> Unit) {
-        Json.parseToJsonElement(json).jsonObject.forEach { (k, v) -> set("$path/$k", v.takeUnless { it is JsonNull }) }
+        // Like Firebase, a multi-path update lands all at once: watchers see it only when it's complete.
+        Json.parseToJsonElement(json).jsonObject.forEach { (k, v) -> set("$path/$k", v.takeUnless { it is JsonNull }, notify = false) }
+        notifyWatchers()
         callback(null)
     }
     override fun push(path: String, json: String, callback: (String?, String?) -> Unit) {
@@ -51,7 +53,9 @@ class FakeBackend(private var uid: String) : GroupBackend {
     fun get(path: String): JsonElement? =
         path.split('/').fold(root as JsonElement?) { e, k -> (e as? JsonObject)?.get(k) }
 
-    private fun set(path: String, value: JsonElement?) {
+    private fun notifyWatchers() = watchers.values.toList().forEach { (p, cb) -> cb(get(p)?.toString()) }
+
+    private fun set(path: String, value: JsonElement?, notify: Boolean = true) {
         fun put(o: JsonObject?, keys: List<String>): JsonObject? {
             val m = (o ?: JsonObject(emptyMap())).toMutableMap()
             val k = keys.first()
@@ -60,7 +64,7 @@ class FakeBackend(private var uid: String) : GroupBackend {
             return JsonObject(m)
         }
         root = put(root, path.split('/')) ?: JsonObject(emptyMap())
-        watchers.values.toList().forEach { (p, cb) -> cb(get(p)?.toString()) }
+        if (notify) notifyWatchers()
     }
 
     private fun emptMap() = emptyMap<String, JsonElement>()
@@ -164,5 +168,53 @@ class GroupClientTest {
         assertNull(c.group.value)
         assertNull(db.get("groups/$code/members/u1"))
         assertNull(store.values["group.code"])
+    }
+}
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class GroupSeatsTest {
+    private val scope = TestScope(UnconfinedTestDispatcher())
+    private val clock = 1_000_000L
+
+    private fun joinAs(db: FakeBackend, uid: String, code: String): GroupClient {
+        db.switchUser(uid)
+        return GroupClient(db, MemoryStore(), scope) { clock }.also { it.join(code) }
+    }
+
+    @Test fun freeGroupStopsAtThreeRiders() {
+        val db = FakeBackend("lead")
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Ride")
+        val code = leader.group.value!!.code
+        assertEquals("\"lead\"", db.get("groups/$code/slots/1").toString())
+        assertEquals("\"1\"", db.get("groups/$code/members/lead/slot").toString())
+
+        joinAs(db, "r2", code)
+        joinAs(db, "r3", code)
+        val fourth = joinAs(db, "r4", code)
+        assertNull(fourth.group.value)
+        assertEquals(app.sawaari.plans.Plans.GROUP_FULL_MESSAGE, fourth.error.value)
+        assertNull(db.get("groups/$code/members/r4"))
+    }
+
+    @Test fun proLeaderGetsBiggerGroupsAndLeavingFreesASeat() {
+        val db = FakeBackend("lead")
+        db.write("subs/lead", """{"until":${clock + 1000},"plan":"yearly"}""") {}
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Ride")
+        val code = leader.group.value!!.code
+        joinAs(db, "r2", code); joinAs(db, "r3", code)
+        val r4 = joinAs(db, "r4", code)
+        assertEquals("\"r4\"", db.get("groups/$code/slots/4").toString())
+
+        // (The fake backend has one signed-in user at a time, so the leader acts first.)
+        db.switchUser("lead")
+        leader.removeRider("r3")
+        assertNull(db.get("groups/$code/slots/3"))
+        assertNull(db.get("groups/$code/members/r3"))
+        db.switchUser("r4")
+        r4.leave()
+        assertNull(db.get("groups/$code/slots/4"))
+        assertNull(db.get("groups/$code/members/r4"))
     }
 }

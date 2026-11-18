@@ -2,6 +2,7 @@ package app.sawaari.group
 
 import app.sawaari.geo.GeoPoint
 import app.sawaari.nav.RidePlan
+import app.sawaari.plans.Plans
 import app.sawaari.util.nowMillis
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,7 +30,9 @@ import kotlin.coroutines.resumeWithException
  * exactly the same data as the Android app's GroupRepository, so riders on both phones share groups:
  *
  *   groups/{code}/meta              {name, leader, createdAt}
- *   groups/{code}/members/{uid}     {name, role, joinedAt, breakAt?, sosAt?, rerouteAt?, phone?, iceName?, icePhone?}
+ *   groups/{code}/slots/{n}         uid    (numbered seats: 1-3 free, more need the leader's Sawaari Pro)
+ *   groups/{code}/members/{uid}     {name, role, slot, joinedAt, breakAt?, sosAt?, rerouteAt?, phone?, iceName?, icePhone?}
+ *   subs/{uid}                      {until, plan}  (written only by the server after checking the store)
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
  *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
@@ -96,7 +99,7 @@ class GroupClient(
             put("leader", uid)
             put("createdAt", now())
         })
-        write("groups/$code/members/$uid", member(Role.LEADER))
+        takeSeat(code, uid, Role.LEADER, leaderUid = uid)
         enter(code)
     }
 
@@ -104,9 +107,35 @@ class GroupClient(
         val code = rawCode.trim().uppercase()
         if (code.length != CODE_LENGTH) throw IllegalArgumentException("Codes are $CODE_LENGTH letters, like K7QM2P.")
         val uid = signIn()
-        if (read("groups/$code/meta") == null) throw IllegalArgumentException("No ride group with code $code.")
-        write("groups/$code/members/$uid", member(Role.RIDER))
+        val meta = read("groups/$code/meta") as? JsonObject ?: throw IllegalArgumentException("No ride group with code $code.")
+        val leader = (meta["leader"] as? JsonPrimitive)?.contentOrNull.orEmpty()
+        takeSeat(code, uid, Role.RIDER, leader)
         enter(code)
+    }
+
+    /**
+     * Claim the lowest free seat and join in one write, so the server can check the seat limit.
+     * Two riders may race for the same seat; the loser just tries the next one.
+     */
+    private suspend fun takeSeat(code: String, uid: String, role: String, leaderUid: String) {
+        val pro = Plans.subscriptionActive(
+            ((read("subs/$leaderUid") as? JsonObject)?.get("until") as? JsonPrimitive)?.longOrNull, now(),
+        )
+        repeat(3) {
+            val slots = (read("groups/$code/slots") as? JsonObject).orEmpty()
+            val mine = slots.entries.firstOrNull { (it.value as? JsonPrimitive)?.contentOrNull == uid }?.key
+            val seat = mine ?: Plans.freeSeat(slots.keys, pro)?.toString()
+                ?: throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+            val ok = runCatching {
+                update("groups/$code", buildJsonObject {
+                    put("slots/$seat", uid)
+                    put("members/$uid", JsonObject(member(role) + ("slot" to JsonPrimitive(seat))))
+                })
+            }.isSuccess
+            if (ok) return
+        }
+        // Reads worked but the server refused every seat: the group filled up (or the leader's Pro ended).
+        throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
     }
 
     fun leave() = action {
@@ -118,6 +147,24 @@ class GroupClient(
         myUid?.let { uid ->
             backend.write("groups/$code/locations/$uid", null) {}
             backend.write("groups/$code/members/$uid", null) {}
+            freeSeats(code, uid)
+        }
+    }
+
+    /** Leader only: take [uid] out of the group, freeing their seat (e.g. someone who changed phones). */
+    fun removeRider(uid: String) = action {
+        val g = _group.value ?: return@action
+        update("groups/${g.code}", buildJsonObject {
+            put("locations/$uid", JsonNull)
+            put("members/$uid", JsonNull)
+        })
+        freeSeats(g.code, uid)
+    }
+
+    private suspend fun freeSeats(code: String, uid: String) {
+        val slots = runCatching { read("groups/$code/slots") as? JsonObject }.getOrNull() ?: return
+        slots.filter { (it.value as? JsonPrimitive)?.contentOrNull == uid }.keys.forEach { n ->
+            backend.write("groups/$code/slots/$n", null) {}
         }
     }
 

@@ -16,8 +16,8 @@ android {
         applicationId = "app.sawaari"
         minSdk = 26
         targetSdk = 35
-        versionCode = 35
-        versionName = "1.12.0"
+        versionCode = 36
+        versionName = "1.13.0"
         // Google Places key for ratings: from the PLACES_API_KEY environment variable (a GitHub secret in CI)
         // or local.properties. Without it the app just shows rider ratings.
         val placesKey = System.getenv("PLACES_API_KEY")
@@ -110,6 +110,11 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-database")
+    // Sawaari Pro: the server checks Play purchases before a leader's group can grow past 3 riders
+    implementation("com.google.firebase:firebase-functions")
+
+    // Sawaari Pro subscriptions (Rs 200 / 3 months, Rs 500 / year) through Google Play
+    implementation("com.android.billingclient:billing-ktx:7.1.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
 
     testImplementation("junit:junit:4.13.2")

@@ -25,6 +25,7 @@ class SawaariApp : Application() {
     override fun onCreate() {
         super.onCreate()
         MapLibre.getInstance(this)
+        app.sawaari.plans.Pro.init(this, appScope)
         app.sawaari.garage.Garage.init(this)
         app.sawaari.ride.RideRecorder.init(this)
         app.sawaari.ride.RideRecorder.onRideSaved = { app.sawaari.garage.GarageReminders.check(this) }

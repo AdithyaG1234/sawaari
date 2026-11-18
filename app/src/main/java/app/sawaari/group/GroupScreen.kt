@@ -72,6 +72,8 @@ fun GroupScreen(
     showPlanTrip: Boolean = false,
 ) {
     var selected by remember { mutableStateOf<Rider?>(null) }
+    var showPro by remember { mutableStateOf(false) }
+    if (showPro) app.sawaari.plans.ProDialog(app.sawaari.plans.ProReason.GROUP, onDismiss = { showPro = false })
     val group by repo.group.collectAsState()
     val busy by repo.busy.collectAsState()
     val error by repo.error.collectAsState()
@@ -295,7 +297,16 @@ fun GroupScreen(
             }
         }
 
-        item { Text("Riders (${g.riders.size})", style = MaterialTheme.typography.titleMedium) }
+        item {
+            val proState by app.sawaari.plans.Pro.state.collectAsState()
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Riders (${g.riders.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                // The leader's plan decides the group size; riders who join never pay.
+                if (iAmLeader && !proState.active) TextButton(onClick = { showPro = true }) {
+                    Text("Free: up to ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}. Get more")
+                }
+            }
+        }
 
         items(g.riders, key = { it.uid }) { r ->
             val isMe = r.uid == repo.myUid
@@ -315,6 +326,7 @@ fun GroupScreen(
                                 if (r.role != Role.MARSHAL) DropdownMenuItem(text = { Text("Make marshal (keeps the group together)") }, onClick = { menu = false; repo.setRole(r.uid, Role.MARSHAL) })
                                 if (r.role != Role.MEDIC) DropdownMenuItem(text = { Text("Make medic (first aid)") }, onClick = { menu = false; repo.setRole(r.uid, Role.MEDIC) })
                                 if (r.role != Role.RIDER) DropdownMenuItem(text = { Text("Make rider") }, onClick = { menu = false; repo.setRole(r.uid, Role.RIDER) })
+                                DropdownMenuItem(text = { Text("Remove from group") }, onClick = { menu = false; repo.removeRider(r.uid) })
                             }
                         }
                     }
