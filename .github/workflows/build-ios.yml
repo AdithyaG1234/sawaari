@@ -53,15 +53,26 @@ jobs:
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
           xcrun simctl install "$DEVICE" iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app
+          # A rider in Bengaluru who has allowed location, so the map shows the blue dot.
+          xcrun simctl privacy "$DEVICE" grant location-always app.sawaari || true
+          xcrun simctl location "$DEVICE" set 12.9716,77.5946 || true
+          shot() { # name, wait seconds, launch arguments...
+            local name=$1 wait=$2; shift 2
+            xcrun simctl terminate "$DEVICE" app.sawaari 2>/dev/null || true
+            xcrun simctl launch "$DEVICE" app.sawaari "$@"
+            sleep "$wait"
+            xcrun simctl io "$DEVICE" screenshot "screenshots/$name.png"
+          }
           xcrun simctl ui "$DEVICE" appearance light
-          xcrun simctl launch "$DEVICE" app.sawaari
-          sleep 12
-          xcrun simctl io "$DEVICE" screenshot screenshots/light.png
-          xcrun simctl terminate "$DEVICE" app.sawaari
+          # First launch: let the app start and get its location, then take the map screenshot.
+          shot first-launch 15
+          xcrun simctl location "$DEVICE" set 12.9716,77.5946 || true
+          shot map 20
+          shot settings 8 -SawaariScreen settings
+          # Downloads a real ride area (Bengaluru to Nandi Hills) to check offline maps work.
+          shot offline 60 -SawaariScreen offline -SawaariDemoDownload YES
           xcrun simctl ui "$DEVICE" appearance dark
-          xcrun simctl launch "$DEVICE" app.sawaari
-          sleep 8
-          xcrun simctl io "$DEVICE" screenshot screenshots/dark.png
+          shot map-dark 20
           # Fail if the app crashed instead of showing its screen.
           xcrun simctl spawn "$DEVICE" launchctl list | grep -q app.sawaari
           ls -l screenshots
