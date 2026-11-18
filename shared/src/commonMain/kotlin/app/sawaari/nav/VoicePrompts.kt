@@ -1,6 +1,5 @@
 package app.sawaari.nav
 
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /**
@@ -20,7 +19,7 @@ class VoicePrompts {
         if (already != null && already <= threshold) return null
         spoken[stepIndex] = threshold
         return if (threshold == thresholds.last()) instruction
-        else "In ${spokenDistance(distance)}, ${instruction.replaceFirstChar { it.lowercase(Locale.ENGLISH) }}"
+        else "In ${spokenDistance(distance)}, ${instruction.replaceFirstChar { it.lowercase() }}"
     }
 
     companion object {

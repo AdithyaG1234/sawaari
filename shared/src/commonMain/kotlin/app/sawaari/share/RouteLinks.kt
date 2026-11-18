@@ -2,9 +2,7 @@ package app.sawaari.share
 
 import app.sawaari.geo.GeoPoint
 import app.sawaari.nav.RidePlan
-import java.net.URLDecoder
-import java.net.URLEncoder
-import java.util.Locale
+import app.sawaari.util.Text
 
 /** One point of a shared route: coordinates if known, and a name if the link had one. */
 data class LinkPoint(val point: GeoPoint?, val name: String = "")
@@ -25,7 +23,7 @@ object RouteLinks {
     private val HEMI = Regex("""(\d{1,3}(?:\.\d+)?)\s*°?\s*(?:(\d{1,2}(?:\.\d+)?)\s*['′’]\s*)?(?:(\d{1,2}(?:\.\d+)?)\s*(?:"|″|”|''|′′)\s*)?([NSEW])\b""", RegexOption.IGNORE_CASE)
     private val MY_LOCATION = Regex("""^(your|my|current) location$""", RegexOption.IGNORE_CASE)
 
-    fun fmt(p: GeoPoint) = "%.5f,%.5f".format(Locale.US, p.lat, p.lon)
+    fun fmt(p: GeoPoint) = "${Text.fixed(p.lat, 5)},${Text.fixed(p.lon, 5)}"
 
     /** Sawaari link: ?s=lat,lon&w=lat,lon|lat,lon&e=lat,lon&n=start|stop1|...|end (names optional). */
     fun sawaariLink(plan: RidePlan, names: (GeoPoint) -> String?): String? {
@@ -179,6 +177,6 @@ object RouteLinks {
         u.substringAfter('?', "").substringBefore('#').split('&').filter { '=' in it }
             .associate { it.substringBefore('=') to dec(it.substringAfter('=')) }
 
-    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
-    private fun dec(s: String) = runCatching { URLDecoder.decode(s, "UTF-8") }.getOrDefault(s)
+    private fun enc(s: String) = Text.urlEncode(s)
+    private fun dec(s: String) = runCatching { Text.urlDecode(s) }.getOrDefault(s)
 }
