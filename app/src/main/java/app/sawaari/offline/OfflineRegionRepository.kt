@@ -14,21 +14,6 @@ import org.maplibre.android.offline.OfflineRegionError
 import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
 
-/** UI-facing snapshot of one downloaded (or downloading) map region. */
-data class DownloadedRegion(
-    val id: Long,
-    val name: String,
-    val completedBytes: Long,
-    val completedResources: Long,
-    val requiredResources: Long,
-    val isComplete: Boolean,
-    val error: String? = null,
-) {
-    val progress: Float
-        get() = if (requiredResources == 0L) 0f
-        else (completedResources.toFloat() / requiredResources).coerceIn(0f, 1f)
-}
-
 /**
  * Wraps MapLibre's OfflineManager: download a bounding box of the map for offline use,
  * list downloads with progress and size, and delete them.

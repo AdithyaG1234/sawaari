@@ -5,15 +5,22 @@ options:
   bundleIdPrefix: app
   deploymentTarget:
     iOS: "16.0"
+packages:
+  # MapLibre for iOS: the same free, open-source map engine the Android app uses.
+  MapLibre:
+    url: https://github.com/maplibre/maplibre-gl-native-distribution
+    from: "6.20.0"
 settings:
   base:
-    MARKETING_VERSION: "0.1.0"
-    CURRENT_PROJECT_VERSION: "1"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "2"
 targets:
   Sawaari:
     type: application
     platform: iOS
     sources: [Sawaari]
+    dependencies:
+      - package: MapLibre
     info:
       path: Sawaari/Info.plist
       properties:
@@ -25,6 +32,7 @@ targets:
         UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
         # Compose renders at the screen's full refresh rate (120 Hz on ProMotion iPhones).
         CADisableMinimumFrameDurationOnPhone: true
+        NSLocationWhenInUseUsageDescription: Sawaari shows where you are on the map and shares it with your ride group.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.sawaari

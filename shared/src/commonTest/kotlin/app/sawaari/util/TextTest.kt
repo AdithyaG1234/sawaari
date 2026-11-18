@@ -47,3 +47,19 @@ class TextTest {
         assertEquals(GeoPoint(13.3702, 77.6835), r.points.last().point)
     }
 }
+
+class FormatBytesTest {
+    @Test fun sizes() {
+        assertEquals("512 B", app.sawaari.offline.formatBytes(512))
+        assertEquals("1.5 kB", app.sawaari.offline.formatBytes(1_500))
+        assertEquals("12 MB", app.sawaari.offline.formatBytes(12_300_000))
+        assertEquals("2 MB", app.sawaari.offline.formatBytes(2_000_000))
+        assertEquals("1.4 GB", app.sawaari.offline.formatBytes(1_400_000_000))
+    }
+
+    @Test fun presetsAreValidBoxes() {
+        app.sawaari.offline.regionPresets.forEach {
+            kotlin.test.assertTrue(it.bounds.south < it.bounds.north && it.bounds.west < it.bounds.east, it.name)
+        }
+    }
+}

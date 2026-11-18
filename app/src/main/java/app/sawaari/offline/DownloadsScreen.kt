@@ -134,7 +134,7 @@ fun DownloadsScreen(
                 headlineContent = { Text(preset.name) },
                 trailingContent = {
                     if (preset.name !in downloadedNames) {
-                        IconButton(onClick = { onDownloadPreset(preset.name, preset.bounds) }) {
+                        IconButton(onClick = { onDownloadPreset(preset.name, preset.bounds.toLatLngBounds()) }) {
                             Icon(Icons.Default.Download, "Download")
                         }
                     }
