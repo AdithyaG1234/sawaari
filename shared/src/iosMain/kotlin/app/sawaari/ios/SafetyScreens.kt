@@ -212,7 +212,8 @@ internal fun SearchBox(
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val link = RouteLinks.findUrl(query) ?: query.trim().takeIf { it.startsWith("sawaari://") }
-    LaunchedEffect(query, link) {
+    // Search again once the location is known, so nearby places come first (and a Nandi Hills in Kenya doesn't).
+    LaunchedEffect(query, link, near != null) {
         error = null
         if (link != null || query.trim().length < 2) { results = emptyList(); loading = false; return@LaunchedEffect }
         delay(400) // wait for the rider to stop typing
