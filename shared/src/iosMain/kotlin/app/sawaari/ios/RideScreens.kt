@@ -55,6 +55,7 @@ import app.sawaari.group.GroupClient
 import app.sawaari.group.RideGroup
 import app.sawaari.group.Rider
 import app.sawaari.group.Role
+import app.sawaari.nav.RidePlan
 import app.sawaari.nav.formatDistance
 import app.sawaari.util.nowMillis
 import kotlinx.coroutines.delay
@@ -66,6 +67,7 @@ internal fun GroupScreen(
     myPosition: GeoPoint?,
     onOpenChat: () -> Unit,
     onShowOnMap: (GeoPoint) -> Unit,
+    onLoadPlan: (RidePlan) -> Unit,
 ) {
     val group by repo.group.collectAsState()
     val busy by repo.busy.collectAsState()
@@ -244,11 +246,14 @@ internal fun GroupScreen(
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("Ride plan from ${g.planBy.ifBlank { "the leader" }}", style = MaterialTheme.typography.titleMedium)
                         Text(
-                            "${plan.stops.size} stop${if (plan.stops.size == 1) "" else "s"} and a destination. " +
-                                "Showing the route and directions on iPhone comes in the next update.",
+                            "${plan.stops.size} stop${if (plan.stops.size == 1) "" else "s"} and a destination.",
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        plan.end?.let { end -> TextButton(onClick = { onShowOnMap(end) }) { Text("Show destination on map") } }
+                        Row {
+                            TextButton(onClick = { onLoadPlan(plan) }) { Text("Ride this route") }
+                            plan.end?.let { end -> TextButton(onClick = { onShowOnMap(end) }) { Text("Show on map") } }
+                            if (iAmLeader) TextButton(onClick = repo::clearSharedPlan) { Text("Remove") }
+                        }
                     }
                 }
             }

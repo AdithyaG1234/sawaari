@@ -15,6 +15,7 @@ Map data © OpenStreetMap contributors.
 The iPhone app is being built step by step in the same repo, sharing code with Android through Kotlin Multiplatform:
 - `shared/`: ride logic used by both apps (routes, navigation tracking, group alerts, ride stats, garage, route links). Its tests run on the JVM and on the iPhone simulator.
 - `iosApp/`: the iPhone app shell (SwiftUI + Compose Multiplatform). The Xcode project is generated from `iosApp/project.yml` with XcodeGen.
+- Done on iPhone so far: the map, offline map downloads, colour themes, group rides (same groups as Android), ride plans with turn-by-turn voice navigation, and ride history. iPhone routes are planned online with the free OpenStreetMap Valhalla server (motorcycle profile); offline routing on iPhone comes later.
 - `build-ios.yml` builds it on GitHub's Mac machines, runs it in the iPhone simulator and saves screenshots. No Apple account is needed until it goes on TestFlight.
 
 ## Features

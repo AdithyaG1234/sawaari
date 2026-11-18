@@ -45,13 +45,32 @@ interface IosMapBridge {
 
     /** Move the map to a place. */
     fun moveTo(lat: Double, lon: Double, zoom: Double)
+
+    /** Draw the planned route as a blue line, or hide it with an empty list. */
+    fun showRoute(points: List<GeoPoint>)
+
+    /** Show the ride plan's start (green S), numbered stops (yellow) and destination (red E). */
+    fun showPlan(start: GeoPoint?, stops: List<GeoPoint>, end: GeoPoint?)
+
+    /** Get [onPress] called when the rider long-presses the map, to add that place to the plan. */
+    fun observeLongPress(onPress: (GeoPoint) -> Unit)
+
+    /** Zoom the map so all of [points] are on screen, e.g. a newly planned route. */
+    fun fitTo(points: List<GeoPoint>)
+
+    /** While navigating, follow the rider closely in the direction of travel. */
+    fun setNavigating(on: Boolean)
 }
 
-/** A location from the phone. [speedMps] and [course] are negative when unknown. */
-data class LocationFix(val lat: Double, val lon: Double, val speedMps: Double, val course: Double)
+/**
+ * A location from the phone. [speedMps], [course] and [accuracy] (metres) are negative when unknown.
+ * [timeMillis] is when the fix was taken.
+ */
+data class LocationFix(val lat: Double, val lon: Double, val speedMps: Double, val course: Double, val accuracy: Double, val timeMillis: Long)
 
 /** Builds a [LocationFix] from Swift. */
-fun makeFix(lat: Double, lon: Double, speedMps: Double, course: Double) = LocationFix(lat, lon, speedMps, course)
+fun makeFix(lat: Double, lon: Double, speedMps: Double, course: Double, accuracy: Double, timeMillis: Long) =
+    LocationFix(lat, lon, speedMps, course, accuracy, timeMillis)
 
 /**
  * Another rider on the map. [kind] picks the colour: "leader", "sweep", "sos", "break" or "rider".

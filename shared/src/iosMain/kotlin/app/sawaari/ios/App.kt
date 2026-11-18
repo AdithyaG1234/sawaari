@@ -20,6 +20,8 @@ import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.CloudDownload
 import androidx.compose.material.icons.filled.MyLocation
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.Icon
@@ -56,7 +58,13 @@ import app.sawaari.group.GroupClient
 import app.sawaari.group.RideGroup
 import app.sawaari.group.Role
 import app.sawaari.group.SosAlert
+import app.sawaari.nav.NavSession
+import app.sawaari.nav.RidePlan
 import app.sawaari.nav.formatDistance
+import app.sawaari.ride.RideLog
+import app.sawaari.ride.SavedRide
+import app.sawaari.ride.TrackPoint
+import kotlinx.coroutines.delay
 import app.sawaari.util.nowMillis
 import kotlinx.coroutines.MainScope
 import app.sawaari.offline.DownloadedRegion
@@ -68,11 +76,15 @@ import platform.UIKit.UIViewController
 /** Entry point the iPhone app (iosApp/) shows full screen, with the Swift MapLibre map passed in. */
 @Suppress("unused", "FunctionName")
 fun MainViewController(bridge: IosMapBridge, backend: GroupBackend): UIViewController {
-    val groups = GroupClient(backend, UserDefaultsStore(), MainScope())
-    return ComposeUIViewController { SawaariIosApp(bridge, groups) }
+    val scope = MainScope()
+    val groups = GroupClient(backend, UserDefaultsStore(), scope)
+    val speaker = Speaker()
+    val nav = NavSession(ValhallaRouter(), scope, speaker::speak)
+    val rides = RideLog(DocumentsRideFiles())
+    return ComposeUIViewController { SawaariIosApp(bridge, groups, nav, rides) }
 }
 
-private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT }
+private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT, RIDES }
 
 /**
  * Test hooks for the simulator screenshots in CI, passed as launch arguments
@@ -82,10 +94,16 @@ private object LaunchArgs {
     private val d = NSUserDefaults.standardUserDefaults
     val screen: Screen = Screen.entries.firstOrNull { it.name.equals(d.stringForKey("SawaariScreen"), ignoreCase = true) } ?: Screen.MAP
     val demoDownload: Boolean = d.boolForKey("SawaariDemoDownload")
+    /** Plan a route from the simulator's location to Nandi Hills, with one stop. */
+    val demoRoute: Boolean = d.boolForKey("SawaariDemoRoute")
+    /** Like [demoRoute], then start navigating. */
+    val demoNav: Boolean = d.boolForKey("SawaariDemoNav")
+    /** Save a sample ride so the ride history has something to show. */
+    val demoRides: Boolean = d.boolForKey("SawaariDemoRides")
 }
 
 @Composable
-fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient) {
+fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, rides: RideLog) {
     val palette by ThemeSettings.palette.collectAsState()
     val mode by ThemeSettings.mode.collectAsState()
     val regionsFlow = remember { MutableStateFlow<List<DownloadedRegion>>(emptyList()) }
@@ -101,14 +119,60 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient) {
     val group by groups.group.collectAsState()
     val alerts by groups.alerts.collectAsState()
     var myPosition by remember { mutableStateOf<GeoPoint?>(null) }
+    val navigating by nav.navigating.collectAsState()
+    val plan by nav.plan.collectAsState()
+    val route by nav.route.collectAsState()
+    val navMessage by nav.message.collectAsState()
+    var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
     LaunchedEffect(Unit) {
         bridge.observeLocation { fix ->
-            myPosition = GeoPoint(fix.lat, fix.lon)
+            val p = GeoPoint(fix.lat, fix.lon)
+            myPosition = p
+            nav.onLocation(p, fix.accuracy)
+            rides.onLocation(fix.lat, fix.lon, fix.timeMillis, if (fix.speedMps >= 0) fix.speedMps * 3.6 else -1.0)
             groups.publish(fix.lat, fix.lon, fix.speedMps, fix.course)
         }
+        bridge.observeLongPress { p -> if (!nav.navigating.value) pressedPoint = p }
+        nav.onReroute = groups::reportReroute
+        if (LaunchArgs.demoRides) rides.add(demoRide())
+        if (LaunchArgs.demoRoute || LaunchArgs.demoNav) {
+            // Wait for the simulator's location, then plan to Nandi Hills via Devanahalli.
+            while (nav.myPosition == null) delay(200)
+            val stop = GeoPoint(13.2470, 77.7120)
+            val end = GeoPoint(13.3702, 77.6835)
+            nav.setLabel(stop, "Devanahalli")
+            nav.setLabel(end, "Nandi Hills")
+            nav.addStop(stop)
+            nav.chooseDestination(end)
+            nav.planRoute()
+            if (LaunchArgs.demoNav) {
+                while (nav.route.value == null && nav.message.value == null) delay(200)
+                nav.start()
+            }
+        }
     }
-    // While in a ride group, keep sharing location with the screen off (like Android's ride service).
-    LaunchedEffect(group != null) { bridge.setBackgroundLocation(group != null) }
+    // While in a ride group or navigating, keep getting locations with the screen off (like Android's ride service).
+    LaunchedEffect(group != null, navigating) { bridge.setBackgroundLocation(group != null || navigating) }
+    // Record the ride while navigating or in a group, like Android's RideRecorder.
+    LaunchedEffect(navigating) {
+        rides.setActive("nav", navigating, plan.end?.let { nav.labelFor(it) })
+        bridge.setNavigating(navigating)
+        keepScreenOn(navigating)
+    }
+    LaunchedEffect(group?.code) { rides.setActive("group", group != null, group?.name) }
+    LaunchedEffect(plan) { bridge.showPlan(plan.start, plan.stops, plan.end) }
+    LaunchedEffect(route) {
+        val r = route
+        bridge.showRoute(r?.points.orEmpty())
+        if (r != null && !nav.navigating.value) bridge.fitTo(r.points)
+    }
+    // A plan the leader shared loads by itself when you have none, like on Android.
+    var lastGroupPlan by remember { mutableStateOf<RidePlan?>(null) }
+    LaunchedEffect(group?.plan) {
+        val gp = group?.plan
+        if (gp != null && gp != lastGroupPlan && !nav.navigating.value && nav.plan.value.isEmpty) nav.loadPlan(gp)
+        lastGroupPlan = gp
+    }
     LaunchedEffect(group) {
         val g = group
         val now = nowMillis()
@@ -143,17 +207,42 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient) {
                 onProfile = { screen = Screen.SETTINGS },
                 onRide = { screen = Screen.RIDE },
                 rideLabel = group?.let { "${it.riders.size} riding" } ?: "Ride",
+                nav = nav,
+                planEmpty = plan.isEmpty,
+                navigating = navigating,
+                onSharePlan = if (group != null && group?.leaderUid == groups.myUid) groups::sharePlan else null,
+                sharedPlan = group?.plan,
                 onDownloadArea = { name ->
                     bridge.download(name, bridge.visibleBounds(), MIN_ZOOM, MAX_ZOOM)
                     cameFromSettings = false
                     screen = Screen.OFFLINE
                 },
             )
+            if (screen == Screen.MAP) pressedPoint?.let { p ->
+                val g = group
+                PlaceActionsDialog(
+                    p, nav,
+                    onSetMeetingPoint = if (g != null && g.leaderUid == groups.myUid) ({ groups.setMeetingPoint(it, 0L, "") }) else null,
+                    onDismiss = { pressedPoint = null },
+                )
+            }
+            navMessage?.let { m ->
+                AlertDialog(
+                    onDismissRequest = nav::clearMessage,
+                    text = { Text(m) },
+                    confirmButton = { TextButton(onClick = nav::clearMessage) { Text("OK") } },
+                )
+            }
             if (screen == Screen.MAP) SosAlertsBanner(alerts, myPosition, onShow = showOnMap, onDismiss = groups::dismissAlert)
             when (screen) {
                 Screen.MAP -> Unit
                 Screen.RIDE -> SubScreen("Map", onBack = { screen = Screen.MAP }) {
-                    GroupScreen(groups, myPosition, onOpenChat = { screen = Screen.CHAT }, onShowOnMap = showOnMap)
+                    GroupScreen(
+                        groups, myPosition,
+                        onOpenChat = { screen = Screen.CHAT },
+                        onShowOnMap = showOnMap,
+                        onLoadPlan = { nav.loadPlan(it); screen = Screen.MAP },
+                    )
                 }
                 Screen.CHAT -> SubScreen("Ride group", onBack = { screen = Screen.RIDE }) { ChatScreen(groups) }
                 Screen.SETTINGS -> SubScreen("Map", onBack = { screen = Screen.MAP }) {
@@ -163,8 +252,10 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient) {
                         onPalette = ThemeSettings::setPalette,
                         onMode = ThemeSettings::setMode,
                         onOfflineMaps = { cameFromSettings = true; screen = Screen.OFFLINE },
+                        onRides = { screen = Screen.RIDES },
                     )
                 }
+                Screen.RIDES -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { RideHistoryScreen(rides) }
                 Screen.OFFLINE -> SubScreen(
                     if (cameFromSettings) "Profile" else "Map",
                     onBack = { screen = if (cameFromSettings) Screen.SETTINGS else Screen.MAP },
@@ -191,13 +282,19 @@ private fun MapHome(
     onProfile: () -> Unit,
     onRide: () -> Unit,
     rideLabel: String,
+    nav: NavSession,
+    planEmpty: Boolean,
+    navigating: Boolean,
+    onSharePlan: ((RidePlan) -> Unit)?,
+    sharedPlan: RidePlan?,
     onDownloadArea: (String) -> Unit,
 ) {
     var askName by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         UIKitView(factory = { bridge.mapView() }, modifier = Modifier.fillMaxSize())
         Box(Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing).padding(12.dp)) {
-            Surface(
+            if (navigating) NavigationBanner(nav, Modifier.align(Alignment.TopCenter))
+            if (!navigating) Surface(
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                 shadowElevation = 4.dp,
@@ -212,21 +309,27 @@ private fun MapHome(
                 onClick = onRide,
                 icon = { Icon(Icons.Default.Groups, null) },
                 text = { Text(rideLabel) },
-                modifier = Modifier.align(Alignment.TopEnd).padding(top = 64.dp),
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = if (navigating) 150.dp else 64.dp),
             )
             Column(
                 Modifier.align(Alignment.BottomEnd),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.End,
             ) {
-                SmallFloatingActionButton(onClick = bridge::centerOnMe) {
+                SmallFloatingActionButton(onClick = { if (navigating) bridge.setNavigating(true) else bridge.centerOnMe() }) {
                     Icon(Icons.Default.MyLocation, contentDescription = "My location")
                 }
-                ExtendedFloatingActionButton(
-                    onClick = { askName = true },
-                    icon = { Icon(Icons.Default.CloudDownload, null) },
-                    text = { Text("Download this area") },
-                )
+                when {
+                    navigating -> Button(onClick = nav::stop) {
+                        Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
+                    }
+                    !planEmpty -> RouteCard(nav, onSharePlan, sharedPlan)
+                    else -> ExtendedFloatingActionButton(
+                        onClick = { askName = true },
+                        icon = { Icon(Icons.Default.CloudDownload, null) },
+                        text = { Text("Download this area") },
+                    )
+                }
             }
         }
     }
@@ -302,4 +405,14 @@ private fun SubScreen(backLabel: String, onBack: () -> Unit, content: @Composabl
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) { content() }
     }
+}
+
+/** A sample ride for the CI screenshots: a loop north of Bengaluru, one fix a minute. */
+private fun demoRide(): SavedRide {
+    val start = 1_763_270_400_000L // Sun 16 Nov 2025, 7:30 AM IST
+    val track = (0..90).map { i ->
+        val a = i / 90.0 * 2 * kotlin.math.PI
+        TrackPoint(13.10 + 0.12 * kotlin.math.sin(a), 77.62 + 0.08 * (1 - kotlin.math.cos(a)), start + i * 60_000L, 45.0 + 15 * kotlin.math.sin(3 * a))
+    }
+    return SavedRide(start, "Sunday breakfast loop", track)
 }

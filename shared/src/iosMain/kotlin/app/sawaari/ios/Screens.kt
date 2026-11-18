@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadForOffline
+import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -55,12 +56,19 @@ internal fun SettingsScreen(
     onPalette: (AppPalette) -> Unit,
     onMode: (DarkMode) -> Unit,
     onOfflineMaps: () -> Unit,
+    onRides: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Profile and settings", style = MaterialTheme.typography.headlineSmall)
+        Text("Your rides", style = MaterialTheme.typography.titleMedium)
+        Text("Rides are recorded while you navigate or ride with a group.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onRides, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Timeline, null); Spacer(Modifier.width(8.dp)); Text("Your rides")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Offline maps", style = MaterialTheme.typography.titleMedium)
         Text("Download maps for areas with no signal.", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = onOfflineMaps, modifier = Modifier.fillMaxWidth()) {

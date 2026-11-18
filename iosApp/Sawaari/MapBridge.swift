@@ -15,6 +15,10 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate, CLLocationMan
     private var onFix: ((LocationFix) -> Void)?
     private var riderAnnotations: [String: RiderAnnotation] = [:]
     private var meetAnnotation: MeetAnnotation?
+    private var planAnnotations: [PlanAnnotation] = []
+    private var routeSource: MLNShapeSource?
+    private var routeCoordinates: [CLLocationCoordinate2D] = []
+    private var onLongPress: ((GeoPoint) -> Void)?
 
     private lazy var map: MLNMapView = {
         let m = MLNMapView(frame: .zero, styleURL: styleURL)
@@ -31,6 +35,8 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate, CLLocationMan
         // clear of the Download button on the bottom right.
         m.attributionButtonPosition = .bottomLeft
         m.attributionButtonMargins = CGPoint(x: 120, y: 12)
+        // Long-press a place to add it to the ride plan, like on Android.
+        m.addGestureRecognizer(UILongPressGestureRecognizer(target: self, action: #selector(longPressed(_:))))
         return m
     }()
 
@@ -104,7 +110,14 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate, CLLocationMan
 
     func locationManager(_ manager: CLLocationManager, didUpdateLocations locations: [CLLocation]) {
         guard let l = locations.last, l.horizontalAccuracy >= 0 else { return }
-        onFix?(MapBridgeKt.makeFix(lat: l.coordinate.latitude, lon: l.coordinate.longitude, speedMps: l.speed, course: l.course))
+        onFix?(MapBridgeKt.makeFix(
+            lat: l.coordinate.latitude,
+            lon: l.coordinate.longitude,
+            speedMps: l.speed,
+            course: l.course,
+            accuracy: l.horizontalAccuracy,
+            timeMillis: Int64(l.timestamp.timeIntervalSince1970 * 1000)
+        ))
     }
 
     // MARK: Riders and meeting point
@@ -156,6 +169,15 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate, CLLocationMan
             }
             return BadgeView(text: String((r.title ?? "R").prefix(1)).uppercased(), color: color, faded: r.faded)
         }
+        if let p = annotation as? PlanAnnotation {
+            let color: UIColor
+            switch p.badge {
+            case "S": color = UIColor(red: 0.18, green: 0.49, blue: 0.20, alpha: 1)
+            case "E": color = UIColor(red: 0.90, green: 0.22, blue: 0.21, alpha: 1)
+            default: color = UIColor(red: 0.98, green: 0.66, blue: 0.15, alpha: 1)
+            }
+            return BadgeView(text: p.badge, color: color, faded: false)
+        }
         if annotation is MeetAnnotation {
             return BadgeView(text: "⚑", color: UIColor(red: 0.0, green: 0.54, blue: 0.48, alpha: 1), faded: false)
         }
@@ -163,6 +185,88 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate, CLLocationMan
     }
 
     func mapView(_ mapView: MLNMapView, annotationCanShowCallout annotation: MLNAnnotation) -> Bool { true }
+
+    // MARK: Ride plan, route and navigation
+
+    @objc private func longPressed(_ g: UILongPressGestureRecognizer) {
+        guard g.state == .began else { return }
+        let c = map.convert(g.location(in: map), toCoordinateFrom: map)
+        onLongPress?(GeoPoint(lat: c.latitude, lon: c.longitude))
+    }
+
+    func observeLongPress(onPress: @escaping (GeoPoint) -> Void) {
+        onLongPress = onPress
+    }
+
+    /// Adds the route line (dark blue casing with a light blue centre, like Android) once the map style has loaded.
+    func mapView(_ mapView: MLNMapView, didFinishLoading style: MLNStyle) {
+        let source = MLNShapeSource(identifier: "sawaari-route", shape: nil, options: nil)
+        style.addSource(source)
+        let casing = MLNLineStyleLayer(identifier: "sawaari-route-casing", source: source)
+        casing.lineColor = NSExpression(forConstantValue: UIColor(red: 0.05, green: 0.28, blue: 0.63, alpha: 1))
+        casing.lineWidth = NSExpression(forConstantValue: 10)
+        casing.lineCap = NSExpression(forConstantValue: "round")
+        casing.lineJoin = NSExpression(forConstantValue: "round")
+        let line = MLNLineStyleLayer(identifier: "sawaari-route-line", source: source)
+        line.lineColor = NSExpression(forConstantValue: UIColor(red: 0.26, green: 0.65, blue: 0.96, alpha: 1))
+        line.lineWidth = NSExpression(forConstantValue: 6)
+        line.lineCap = NSExpression(forConstantValue: "round")
+        line.lineJoin = NSExpression(forConstantValue: "round")
+        style.addLayer(casing)
+        style.addLayer(line)
+        routeSource = source
+        applyRoute()
+    }
+
+    func showRoute(points: [GeoPoint]) {
+        routeCoordinates = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+        applyRoute()
+    }
+
+    private func applyRoute() {
+        guard let source = routeSource else { return }
+        if routeCoordinates.count < 2 {
+            source.shape = nil
+        } else {
+            source.shape = MLNPolyline(coordinates: routeCoordinates, count: UInt(routeCoordinates.count))
+        }
+    }
+
+    func showPlan(start: GeoPoint?, stops: [GeoPoint], end: GeoPoint?) {
+        map.removeAnnotations(planAnnotations)
+        planAnnotations = []
+        func add(_ p: GeoPoint, _ badge: String, _ title: String) {
+            let a = PlanAnnotation(badge: badge)
+            a.coordinate = CLLocationCoordinate2D(latitude: p.lat, longitude: p.lon)
+            a.title = title
+            planAnnotations.append(a)
+        }
+        if let s = start { add(s, "S", "Start") }
+        for (i, p) in stops.enumerated() { add(p, "\(i + 1)", "Stop \(i + 1)") }
+        if let e = end { add(e, "E", "Destination") }
+        map.addAnnotations(planAnnotations)
+    }
+
+    func fitTo(points: [GeoPoint]) {
+        guard points.count >= 2 else { return }
+        var coordinates = points.map { CLLocationCoordinate2D(latitude: $0.lat, longitude: $0.lon) }
+        map.userTrackingMode = .none
+        map.setVisibleCoordinates(
+            &coordinates,
+            count: UInt(coordinates.count),
+            edgePadding: UIEdgeInsets(top: 120, left: 40, bottom: 360, right: 40),
+            animated: true
+        )
+    }
+
+    func setNavigating(on: Bool) {
+        if on {
+            map.setZoomLevel(16, animated: true)
+            map.userTrackingMode = .followWithCourse
+        } else {
+            map.userTrackingMode = .none
+        }
+    }
 
     // MARK: Offline areas
 
@@ -260,6 +364,16 @@ final class RiderAnnotation: MLNPointAnnotation {
     init(kind: String, faded: Bool) {
         self.kind = kind
         self.faded = faded
+        super.init()
+    }
+    required init?(coder: NSCoder) { fatalError("not used") }
+}
+
+/// A start, stop or destination of the ride plan.
+final class PlanAnnotation: MLNPointAnnotation {
+    let badge: String
+    init(badge: String) {
+        self.badge = badge
         super.init()
     }
     required init?(coder: NSCoder) { fatalError("not used") }

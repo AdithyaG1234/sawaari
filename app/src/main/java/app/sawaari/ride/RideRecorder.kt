@@ -12,12 +12,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** A finished ride, as saved on the phone. */
-/** [bikeId] is the garage bike the ride was recorded on (0 when none). */
-data class SavedRide(val id: Long, val title: String, val track: List<TrackPoint>, val bikeId: Long = 0L) {
-    val stats: RideStats by lazy { RideStats.of(track) }
-}
-
 /**
  * Records your own track while you navigate or ride with a group, and keeps it on the phone
  * (no account, no upload). A ride starts when navigation starts or you join a group, and ends
