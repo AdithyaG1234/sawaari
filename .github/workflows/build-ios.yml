@@ -70,6 +70,9 @@ jobs:
           shot map 20
           shot settings 8 -SawaariScreen settings
           shot ride 10 -SawaariScreen ride
+          shot route 25 -SawaariDemoRoute YES
+          shot navigating 25 -SawaariDemoNav YES
+          shot rides 10 -SawaariScreen rides -SawaariDemoRides YES
           # Downloads a real ride area (Bengaluru to Nandi Hills) to check offline maps work.
           shot offline 60 -SawaariScreen offline -SawaariDemoDownload YES
           xcrun simctl ui "$DEVICE" appearance dark
