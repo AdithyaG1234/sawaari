@@ -26,7 +26,7 @@ class ValhallaRouter : Router {
         request.setHTTPMethod("POST")
         request.setValue("application/json", forHTTPHeaderField = "Content-Type")
         request.setValue("Sawaari-iOS", forHTTPHeaderField = "User-Agent")
-        request.timeoutInterval = 30.0
+        request.setTimeoutInterval(30.0)
         request.setHTTPBody(NSString.create(string = body).dataUsingEncoding(NSUTF8StringEncoding))
         val task = NSURLSession.sharedSession.dataTaskWithRequest(request) { data, response, error ->
             if (error != null) {
