@@ -10,10 +10,6 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 
-/** Everything in the garage: the bikes, and the one being ridden now (its rides add to its odometer). */
-data class GarageState(val bikes: List<Bike> = emptyList(), val currentId: Long = 0L) {
-    val current: Bike? get() = bikes.firstOrNull { it.id == currentId } ?: bikes.firstOrNull()
-}
 
 /** The rider's bikes, service jobs and papers. Kept only on this phone, in filesDir/garage.json. */
 object Garage {

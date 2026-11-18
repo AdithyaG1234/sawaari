@@ -315,7 +315,7 @@ internal fun PlaceActionsDialog(
 
 /** Your rides, newest first, with distance, riding time and speeds. Kept only on this phone. Like Android. */
 @Composable
-internal fun RideHistoryScreen(rides: RideLog) {
+internal fun RideHistoryScreen(rides: RideLog, bikeName: (Long) -> String? = { null }) {
     val list by rides.rides.collectAsState()
     var confirmDelete by remember { mutableStateOf<SavedRide?>(null) }
     LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -339,7 +339,7 @@ internal fun RideHistoryScreen(rides: RideLog) {
                     style = MaterialTheme.typography.titleMedium,
                 )
             }
-            items(list, key = { it.id }) { r -> RideCard(r, onDelete = { confirmDelete = r }) }
+            items(list, key = { it.id }) { r -> RideCard(r, bikeName(r.bikeId), onDelete = { confirmDelete = r }) }
         }
     }
     confirmDelete?.let { r ->
@@ -354,7 +354,7 @@ internal fun RideHistoryScreen(rides: RideLog) {
 }
 
 @Composable
-private fun RideCard(r: SavedRide, onDelete: () -> Unit) {
+private fun RideCard(r: SavedRide, bike: String?, onDelete: () -> Unit) {
     val s = r.stats
     val color = MaterialTheme.colorScheme.primary
     Card(Modifier.fillMaxWidth()) {
@@ -384,6 +384,7 @@ private fun RideCard(r: SavedRide, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 Text("Average ${s.avgMovingKmh.toInt()} km/h · Top ${s.topKmh.toInt()} km/h", style = MaterialTheme.typography.bodySmall)
+                if (bike != null) Text("On $bike", style = MaterialTheme.typography.bodySmall)
             }
             IconButton(onClick = onDelete) { Icon(Icons.Default.Delete, "Delete ride") }
         }

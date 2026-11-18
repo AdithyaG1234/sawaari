@@ -49,6 +49,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.input.pointer.pointerInput
+import kotlinx.coroutines.launch
 import app.sawaari.geo.GeoPoint
 import app.sawaari.geo.distanceMeters
 import app.sawaari.group.GroupClient
@@ -322,11 +334,19 @@ internal fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): Str
 /** One-tap messages that are quick to send at a stop, without typing. Same as Android. */
 private val QUICK = listOf("On my way", "Fuel stop", "Wait for me", "All good", "Slow down", "Reached", "Puncture, need help")
 
-/** The group's chat: text and one-tap quick messages. Voice notes from Android riders show as notes. */
+/** The group's chat: text, one-tap quick messages and hold-to-talk voice notes, like Android. */
 @Composable
 internal fun ChatScreen(repo: GroupClient) {
     val chat by repo.chat.collectAsState()
     val me = repo.myUid
+    val voice = remember { VoiceNotes() }
+    val scope = rememberCoroutineScope()
+    var playing by remember { mutableStateOf<String?>(null) }
+    var recording by remember { mutableStateOf(false) }
+    var hint by remember { mutableStateOf("Hold the mic button to talk, let go to send.") }
+    var micAllowed by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) { voice.askPermission { ok -> micAllowed = ok; if (!ok) hint = "Sawaari needs the microphone to record voice notes. Allow it in iPhone Settings." } }
+    DisposableEffect(Unit) { onDispose { voice.release() } }
     val list = rememberLazyListState()
     LaunchedEffect(chat.size) { if (chat.isNotEmpty()) list.animateScrollToItem(chat.lastIndex) }
     Column(Modifier.fillMaxSize().imePadding()) {
@@ -348,7 +368,26 @@ internal fun ChatScreen(repo: GroupClient) {
                     ) {
                         Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) {
                             if (!mine) Text(m.name, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
-                            Text(if (m.voiceMs > 0) "🎤 Voice note (${(m.voiceMs / 1000).coerceAtLeast(1)} s)" else m.text)
+                            if (m.voiceMs > 0) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    IconButton(onClick = {
+                                        if (playing == m.id) { voice.stopPlayback(); playing = null }
+                                        else {
+                                            playing = m.id
+                                            scope.launch {
+                                                val audio = repo.loadVoice(m.id)
+                                                if (audio == null) { playing = null; hint = "Couldn't load that voice note. Check your internet." }
+                                                else voice.play(audio) { playing = null }
+                                            }
+                                        }
+                                    }) {
+                                        Icon(if (playing == m.id) Icons.Default.Stop else Icons.Default.PlayArrow, if (playing == m.id) "Stop" else "Play")
+                                    }
+                                    Text("Voice note · ${(m.voiceMs + 500) / 1000} s")
+                                }
+                            } else {
+                                Text(m.text)
+                            }
                         }
                     }
                 }
@@ -357,8 +396,34 @@ internal fun ChatScreen(repo: GroupClient) {
         LazyRow(contentPadding = PaddingValues(horizontal = 12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             items(QUICK) { q -> AssistChip(onClick = { repo.sendText(q) }, label = { Text(q) }) }
         }
+        Text(
+            if (recording) "Recording… let go to send" else hint,
+            style = MaterialTheme.typography.bodySmall,
+            color = if (recording) SOS_RED else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 6.dp),
+        )
         var text by remember { mutableStateOf("") }
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+            // Hold to talk, let go to send.
+            Surface(
+                shape = CircleShape,
+                color = if (recording) SOS_RED else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(48.dp).pointerInput(micAllowed) {
+                    detectTapGestures(onPress = {
+                        if (micAllowed == false) { hint = "Allow the microphone for Sawaari in iPhone Settings to send voice notes."; return@detectTapGestures }
+                        if (!voice.start()) { hint = "Couldn't open the microphone."; return@detectTapGestures }
+                        recording = true
+                        tryAwaitRelease()
+                        recording = false
+                        val note = voice.stop()
+                        if (note == null) hint = "Hold the mic a little longer to record."
+                        else { repo.sendVoice(note.first, note.second); hint = "Hold the mic button to talk, let go to send." }
+                    })
+                },
+            ) {
+                Box(contentAlignment = Alignment.Center) { Icon(Icons.Default.Mic, "Hold to record a voice note", tint = Color.White) }
+            }
+            Spacer(Modifier.width(8.dp))
             OutlinedTextField(
                 value = text, onValueChange = { text = it.take(500) },
                 placeholder = { Text("Message") }, modifier = Modifier.weight(1f), maxLines = 3,

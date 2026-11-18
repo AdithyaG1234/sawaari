@@ -1,8 +1,15 @@
 import Shared
 import SwiftUI
+import UserNotifications
 
 @main
 struct SawaariApp: App {
+    private static let notifications = ForegroundNotifications()
+
+    init() {
+        UNUserNotificationCenter.current().delegate = Self.notifications
+    }
+
     var body: some Scene {
         WindowGroup {
             ComposeView()
@@ -23,4 +30,15 @@ struct ComposeView: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {}
+}
+
+/// Shows Sawaari's notifications (group alerts, service reminders, crash countdown) while the app is open too.
+final class ForegroundNotifications: NSObject, UNUserNotificationCenterDelegate {
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .list, .sound])
+    }
 }
