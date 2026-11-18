@@ -19,6 +19,10 @@ kotlin {
     }
 
     sourceSets {
+        commonMain.dependencies {
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+            implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+        }
         // The iPhone screens use Compose Multiplatform. Only the iPhone side pulls it in for now,
         // so the Android app keeps using its own Jetpack Compose unchanged.
         iosMain.dependencies {
@@ -30,6 +34,7 @@ kotlin {
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
+            implementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.9.0")
         }
         jvmTest.dependencies {
             implementation("junit:junit:4.13.2")

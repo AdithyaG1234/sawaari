@@ -10,10 +10,14 @@ packages:
   MapLibre:
     url: https://github.com/maplibre/maplibre-gl-native-distribution
     from: "6.20.0"
+  # Firebase (group rides): the same project as the Android app.
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk
+    from: "11.0.0"
 settings:
   base:
-    MARKETING_VERSION: "0.2.0"
-    CURRENT_PROJECT_VERSION: "2"
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "3"
 targets:
   Sawaari:
     type: application
@@ -21,6 +25,10 @@ targets:
     sources: [Sawaari]
     dependencies:
       - package: MapLibre
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseDatabase
     info:
       path: Sawaari/Info.plist
       properties:
@@ -33,6 +41,9 @@ targets:
         # Compose renders at the screen's full refresh rate (120 Hz on ProMotion iPhones).
         CADisableMinimumFrameDurationOnPhone: true
         NSLocationWhenInUseUsageDescription: Sawaari shows where you are on the map and shares it with your ride group.
+        NSLocationAlwaysAndWhenInUseUsageDescription: While you're in a ride group, Sawaari keeps sharing your location with the group when the screen is off.
+        # Keeps sharing location with the ride group with the screen off, like Android's ride service.
+        UIBackgroundModes: [location]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.sawaari

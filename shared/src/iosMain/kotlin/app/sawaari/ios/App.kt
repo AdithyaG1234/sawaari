@@ -46,6 +46,19 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.UIKitView
 import androidx.compose.ui.window.ComposeUIViewController
+import androidx.compose.material.icons.filled.Groups
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import app.sawaari.geo.GeoPoint
+import app.sawaari.geo.distanceMeters
+import app.sawaari.group.GroupBackend
+import app.sawaari.group.GroupClient
+import app.sawaari.group.RideGroup
+import app.sawaari.group.Role
+import app.sawaari.group.SosAlert
+import app.sawaari.nav.formatDistance
+import app.sawaari.util.nowMillis
+import kotlinx.coroutines.MainScope
 import app.sawaari.offline.DownloadedRegion
 import app.sawaari.offline.regionPresets
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -54,9 +67,12 @@ import platform.UIKit.UIViewController
 
 /** Entry point the iPhone app (iosApp/) shows full screen, with the Swift MapLibre map passed in. */
 @Suppress("unused", "FunctionName")
-fun MainViewController(bridge: IosMapBridge): UIViewController = ComposeUIViewController { SawaariIosApp(bridge) }
+fun MainViewController(bridge: IosMapBridge, backend: GroupBackend): UIViewController {
+    val groups = GroupClient(backend, UserDefaultsStore(), MainScope())
+    return ComposeUIViewController { SawaariIosApp(bridge, groups) }
+}
 
-private enum class Screen { MAP, SETTINGS, OFFLINE }
+private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT }
 
 /**
  * Test hooks for the simulator screenshots in CI, passed as launch arguments
@@ -69,7 +85,7 @@ private object LaunchArgs {
 }
 
 @Composable
-fun SawaariIosApp(bridge: IosMapBridge) {
+fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient) {
     val palette by ThemeSettings.palette.collectAsState()
     val mode by ThemeSettings.mode.collectAsState()
     val regionsFlow = remember { MutableStateFlow<List<DownloadedRegion>>(emptyList()) }
@@ -82,6 +98,41 @@ fun SawaariIosApp(bridge: IosMapBridge) {
         }
     }
     var screen by remember { mutableStateOf(LaunchArgs.screen) }
+    val group by groups.group.collectAsState()
+    val alerts by groups.alerts.collectAsState()
+    var myPosition by remember { mutableStateOf<GeoPoint?>(null) }
+    LaunchedEffect(Unit) {
+        bridge.observeLocation { fix ->
+            myPosition = GeoPoint(fix.lat, fix.lon)
+            groups.publish(fix.lat, fix.lon, fix.speedMps, fix.course)
+        }
+    }
+    // While in a ride group, keep sharing location with the screen off (like Android's ride service).
+    LaunchedEffect(group != null) { bridge.setBackgroundLocation(group != null) }
+    LaunchedEffect(group) {
+        val g = group
+        val now = nowMillis()
+        bridge.showRiders(g?.riders.orEmpty().filter { it.uid != groups.myUid }.mapNotNull { r ->
+            val lat = r.lat ?: return@mapNotNull null
+            val lon = r.lon ?: return@mapNotNull null
+            val sos = r.sosAt > 0 && now - r.sosAt < RideGroup.SOS_TAKEOVER_MS
+            RiderPin(
+                uid = r.uid, name = r.name,
+                label = Role.label(r.role) + if (r.breakAt > 0) " · on a break" else "",
+                kind = when {
+                    sos -> "sos"
+                    r.breakAt > 0 -> "break"
+                    r.uid == g?.leaderUid -> "leader"
+                    r.role == Role.SWEEP -> "sweep"
+                    else -> "rider"
+                },
+                lat = lat, lon = lon,
+                faded = r.updatedAt > 0 && now - r.updatedAt > 5 * 60_000L,
+            )
+        })
+        bridge.showMeetingPoint(g?.meet?.point, g?.meet?.note?.ifBlank { null } ?: "Meeting point")
+    }
+    val showOnMap: (GeoPoint) -> Unit = { p -> bridge.moveTo(p.lat, p.lon, 14.0); screen = Screen.MAP }
     var cameFromSettings by remember { mutableStateOf(LaunchArgs.screen == Screen.OFFLINE) }
 
     SawaariTheme(palette, mode) {
@@ -90,14 +141,21 @@ fun SawaariIosApp(bridge: IosMapBridge) {
             MapHome(
                 bridge = bridge,
                 onProfile = { screen = Screen.SETTINGS },
+                onRide = { screen = Screen.RIDE },
+                rideLabel = group?.let { "${it.riders.size} riding" } ?: "Ride",
                 onDownloadArea = { name ->
                     bridge.download(name, bridge.visibleBounds(), MIN_ZOOM, MAX_ZOOM)
                     cameFromSettings = false
                     screen = Screen.OFFLINE
                 },
             )
+            if (screen == Screen.MAP) SosAlertsBanner(alerts, myPosition, onShow = showOnMap, onDismiss = groups::dismissAlert)
             when (screen) {
                 Screen.MAP -> Unit
+                Screen.RIDE -> SubScreen("Map", onBack = { screen = Screen.MAP }) {
+                    GroupScreen(groups, myPosition, onOpenChat = { screen = Screen.CHAT }, onShowOnMap = showOnMap)
+                }
+                Screen.CHAT -> SubScreen("Ride group", onBack = { screen = Screen.RIDE }) { ChatScreen(groups) }
                 Screen.SETTINGS -> SubScreen("Map", onBack = { screen = Screen.MAP }) {
                     SettingsScreen(
                         palette = palette,
@@ -128,7 +186,13 @@ private const val MIN_ZOOM = 6.0
 private const val MAX_ZOOM = 14.0
 
 @Composable
-private fun MapHome(bridge: IosMapBridge, onProfile: () -> Unit, onDownloadArea: (String) -> Unit) {
+private fun MapHome(
+    bridge: IosMapBridge,
+    onProfile: () -> Unit,
+    onRide: () -> Unit,
+    rideLabel: String,
+    onDownloadArea: (String) -> Unit,
+) {
     var askName by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize()) {
         UIKitView(factory = { bridge.mapView() }, modifier = Modifier.fillMaxSize())
@@ -143,6 +207,13 @@ private fun MapHome(bridge: IosMapBridge, onProfile: () -> Unit, onDownloadArea:
                     Icon(Icons.Default.AccountCircle, contentDescription = "Profile and settings", modifier = Modifier.size(32.dp))
                 }
             }
+            // The "Ride" button opens the ride group, like on Android.
+            ExtendedFloatingActionButton(
+                onClick = onRide,
+                icon = { Icon(Icons.Default.Groups, null) },
+                text = { Text(rideLabel) },
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 64.dp),
+            )
             Column(
                 Modifier.align(Alignment.BottomEnd),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -182,6 +253,32 @@ private fun MapHome(bridge: IosMapBridge, onProfile: () -> Unit, onDownloadArea:
             },
             dismissButton = { TextButton(onClick = { askName = false }) { Text("Cancel") } },
         )
+    }
+}
+
+/** Other riders' SOS alerts, on top of the map until dismissed. */
+@Composable
+private fun SosAlertsBanner(alerts: List<SosAlert>, myPosition: GeoPoint?, onShow: (GeoPoint) -> Unit, onDismiss: (String) -> Unit) {
+    if (alerts.isEmpty()) return
+    Column(
+        Modifier.fillMaxWidth().windowInsetsPadding(WindowInsets.safeDrawing).padding(start = 12.dp, end = 12.dp, top = 130.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        alerts.forEach { a ->
+            Surface(color = Color(0xFFD32F2F), contentColor = Color.White, shape = MaterialTheme.shapes.large, shadowElevation = 6.dp) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text("SOS: ${a.name} needs help", fontWeight = FontWeight.Bold)
+                    val at = a.lat?.let { lat -> a.lon?.let { lon -> GeoPoint(lat, lon) } }
+                    val ageMin = ((nowMillis() - a.ts) / 60_000).coerceAtLeast(0)
+                    val where = if (at != null && myPosition != null) "${formatDistance(distanceMeters(myPosition, at))} away · " else ""
+                    Text("$where${if (ageMin < 1) "just now" else "$ageMin min ago"}")
+                    Row {
+                        if (at != null) TextButton(onClick = { onShow(at) }) { Text("Show on map", color = Color.White) }
+                        TextButton(onClick = { onDismiss(a.id) }) { Text("Dismiss", color = Color.White) }
+                    }
+                }
+            }
+        }
     }
 }
 
