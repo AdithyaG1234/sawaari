@@ -69,6 +69,7 @@ jobs:
           xcrun simctl location "$DEVICE" set 12.9716,77.5946 || true
           shot map 20
           shot settings 8 -SawaariScreen settings
+          shot ride 10 -SawaariScreen ride
           # Downloads a real ride area (Bengaluru to Nandi Hills) to check offline maps work.
           shot offline 60 -SawaariScreen offline -SawaariDemoDownload YES
           xcrun simctl ui "$DEVICE" appearance dark
