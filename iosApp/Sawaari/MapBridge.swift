@@ -24,6 +24,10 @@ final class MapBridge: NSObject, IosMapBridge, MLNMapViewDelegate {
         )
         m.showsUserLocation = true
         m.compassViewPosition = .topLeft
+        // Keep the OpenStreetMap credit (the "i" button) visible next to the MapLibre logo,
+        // clear of the Download button on the bottom right.
+        m.attributionButtonPosition = .bottomLeft
+        m.attributionButtonMargins = CGPoint(x: 120, y: 12)
         return m
     }()
 
