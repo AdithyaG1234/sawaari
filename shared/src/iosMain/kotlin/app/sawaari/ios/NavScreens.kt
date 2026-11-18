@@ -50,6 +50,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -76,6 +77,7 @@ import app.sawaari.nav.formatDuration
 import app.sawaari.ride.RideLog
 import app.sawaari.ride.SavedRide
 import app.sawaari.routing.Sign
+import app.sawaari.share.RouteLinks
 import app.sawaari.util.Text as TextUtil
 import kotlin.math.PI
 import kotlin.math.cos
@@ -172,7 +174,7 @@ internal fun RouteCard(nav: NavSession, onSharePlan: ((RidePlan) -> Unit)?, shar
                 PlanRow(
                     "E", END_COLOR,
                     when {
-                        end == null -> "Destination: long-press the map"
+                        end == null -> "Destination: search above, or long-press the map"
                         nav.isRoundTrip -> "Destination: back to the start"
                         else -> "Destination: ${pointName(end, nav)}"
                     },
@@ -183,7 +185,7 @@ internal fun RouteCard(nav: NavSession, onSharePlan: ((RidePlan) -> Unit)?, shar
                     Switch(checked = nav.isRoundTrip, onCheckedChange = { nav.makeRoundTrip(it) })
                 }
                 Text(
-                    if (r == null) "Long-press the map to add stops. On iPhone the route is planned online, so you need signal to plan it."
+                    if (r == null) "Search above or long-press the map to add stops. On iPhone the route is planned online, so you need signal to plan it."
                     else "Fastest motorcycle route through your stops",
                     style = MaterialTheme.typography.bodySmall,
                 )
@@ -202,6 +204,17 @@ internal fun RouteCard(nav: NavSession, onSharePlan: ((RidePlan) -> Unit)?, shar
                     }
                 }
                 OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
+            }
+            if (expanded && plan.end != null) {
+                TextButton(onClick = {
+                    val text = buildString {
+                        RouteLinks.sawaariLink(plan, nav::labelFor)?.let { append("Open in Sawaari: ").append(it).append("\n") }
+                        RouteLinks.googleLink(plan)?.let { append("Google Maps: ").append(it) }
+                    }
+                    shareText(text)
+                }) {
+                    Icon(Icons.Default.Share, null); Spacer(Modifier.width(8.dp)); Text("Share route (WhatsApp etc.)")
+                }
             }
             if (expanded && onSharePlan != null && plan.end != null) {
                 val shared = sharedPlan == plan
@@ -267,20 +280,28 @@ internal fun PlaceActionsDialog(
     nav: NavSession,
     onSetMeetingPoint: ((GeoPoint) -> Unit)?,
     onDismiss: () -> Unit,
+    label: String? = null,
 ) {
     val plan by nav.plan.collectAsState()
+    // A long-pressed place gets a name from an online lookup, so the plan reads "Nandi Hills" instead of numbers.
+    var name by remember(p) { mutableStateOf(label) }
+    LaunchedEffect(p) { if (name == null) name = IosPlaceSearch.nameOf(p) }
+    fun choose(action: () -> Unit) { nav.setLabel(p, name); action(); onDismiss() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to your ride plan") },
+        title = { Text(name ?: "Add to your ride plan") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("${TextUtil.fixed(p.lat, 4)}, ${TextUtil.fixed(p.lon, 4)}", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    (if (name != null) "Add to your ride plan · " else "") + "${TextUtil.fixed(p.lat, 4)}, ${TextUtil.fixed(p.lon, 4)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Spacer(Modifier.size(4.dp))
-                FilledTonalButton(onClick = { nav.chooseDestination(p); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("End here (destination)") }
-                FilledTonalButton(onClick = { nav.addStop(p); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(onClick = { choose { nav.chooseDestination(p) } }, modifier = Modifier.fillMaxWidth()) { Text("End here (destination)") }
+                FilledTonalButton(onClick = { choose { nav.addStop(p) } }, modifier = Modifier.fillMaxWidth()) {
                     Text("Add as stop ${plan.stops.size + 1}")
                 }
-                OutlinedButton(onClick = { nav.setStart(p); onDismiss() }, modifier = Modifier.fillMaxWidth()) { Text("Start here instead of my location") }
+                OutlinedButton(onClick = { choose { nav.setStart(p) } }, modifier = Modifier.fillMaxWidth()) { Text("Start here instead of my location") }
                 if (onSetMeetingPoint != null) {
                     OutlinedButton(onClick = { onSetMeetingPoint(p); onDismiss() }, modifier = Modifier.fillMaxWidth()) {
                         Text("Set meeting point for the group")

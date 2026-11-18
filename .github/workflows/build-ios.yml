@@ -73,6 +73,10 @@ jobs:
           shot route 25 -SawaariDemoRoute YES
           shot navigating 25 -SawaariDemoNav YES
           shot rides 10 -SawaariScreen rides -SawaariDemoRides YES
+          shot sos-settings 8 -SawaariScreen sos
+          shot sos 3 -SawaariDemoSos YES
+          shot search 15 -SawaariDemoSearch "Nandi Hills"
+          shot link 25 -SawaariDemoLink "https://adithyag1234.github.io/sawaari/r/?w=13.24700,77.71200&e=13.37020,77.68350&n=Devanahalli|Nandi%20Hills"
           # Downloads a real ride area (Bengaluru to Nandi Hills) to check offline maps work.
           shot offline 60 -SawaariScreen offline -SawaariDemoDownload YES
           xcrun simctl ui "$DEVICE" appearance dark

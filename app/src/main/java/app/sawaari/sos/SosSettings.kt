@@ -7,10 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import org.json.JSONArray
 import org.json.JSONObject
 
-data class EmergencyContact(val name: String, val phone: String)
-
-data class MedicalInfo(val bloodGroup: String = "", val notes: String = "")
-
 /** Emergency contacts and medical info, stored only on this phone. */
 class SosSettings(context: Context) {
     private val prefs = context.getSharedPreferences("sos", Context.MODE_PRIVATE)
