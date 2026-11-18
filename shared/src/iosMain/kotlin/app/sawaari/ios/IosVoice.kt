@@ -4,18 +4,7 @@ package app.sawaari.ios
 
 import app.sawaari.util.nowMillis
 import kotlinx.cinterop.ExperimentalForeignApi
-import platform.AVFAudio.AVAudioPlayer
-import platform.AVFAudio.AVAudioPlayerDelegateProtocol
-import platform.AVFAudio.AVAudioRecorder
-import platform.AVFAudio.AVAudioSession
-import platform.AVFAudio.AVAudioSessionCategoryOptionDefaultToSpeaker
-import platform.AVFAudio.AVAudioSessionCategoryOptionDuckOthers
-import platform.AVFAudio.AVAudioSessionCategoryPlayAndRecord
-import platform.AVFAudio.AVAudioSessionCategoryPlayback
-import platform.AVFAudio.AVEncoderBitRateKey
-import platform.AVFAudio.AVFormatIDKey
-import platform.AVFAudio.AVNumberOfChannelsKey
-import platform.AVFAudio.AVSampleRateKey
+import platform.AVFAudio.*
 import platform.CoreAudioTypes.kAudioFormatMPEG4AAC
 import platform.Foundation.NSData
 import platform.Foundation.NSTemporaryDirectory
