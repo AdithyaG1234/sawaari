@@ -9,6 +9,10 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    inputs:
+      device:
+        description: Simulator to use. "iPhone 16 Pro Max" gives App Store size screenshots (1320 x 2868).
+        default: iPhone 16
 
 permissions:
   contents: write
@@ -46,9 +50,11 @@ jobs:
             -derivedDataPath iosApp/build ARCHS=arm64 ONLY_ACTIVE_ARCH=YES CODE_SIGNING_ALLOWED=NO build | tail -n 40
           test -x iosApp/build/Build/Products/Debug-iphonesimulator/Sawaari.app/Sawaari
       - name: Run it in the simulator and take screenshots
+        env:
+          SIM: ${{ inputs.device || 'iPhone 16' }}
         run: |
           mkdir -p screenshots
-          DEVICE=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name'].startswith('iPhone 16')))")
+          DEVICE=$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if x['name']==sys.argv[1]))" "$SIM")
           echo "Simulator: $DEVICE"
           xcrun simctl boot "$DEVICE"
           xcrun simctl bootstatus "$DEVICE" -b
@@ -100,8 +106,11 @@ jobs:
         if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
         env:
           BRANCH: ${{ github.head_ref || github.ref_name }}
+          SIM: ${{ inputs.device || 'iPhone 16' }}
         run: |
           DIR="${BRANCH//\//-}"
+          # Other simulators (App Store screenshots) go in their own folder, e.g. main-iphone-16-pro-max.
+          if [ "$SIM" != "iPhone 16" ]; then SLUG=$(echo "$SIM" | tr 'A-Z ' 'a-z-'); DIR="$DIR-$SLUG"; fi
           git config --global user.name "github-actions[bot]"
           git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git clone --depth 1 --branch ios-screenshots "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" shots 2>/dev/null || {

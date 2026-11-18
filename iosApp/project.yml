@@ -39,6 +39,9 @@ targets:
       path: Sawaari/Info.plist
       properties:
         CFBundleDisplayName: Sawaari
+        # Only standard HTTPS, so no export-compliance paperwork for each TestFlight build.
+        ITSAppUsesNonExemptEncryption: false
+        LSApplicationCategoryType: public.app-category.navigation
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
@@ -60,6 +63,8 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: app.sawaari
         PRODUCT_NAME: Sawaari
         TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        CODE_SIGN_STYLE: Automatic
         ENABLE_USER_SCRIPT_SANDBOXING: NO
         FRAMEWORK_SEARCH_PATHS: $(SRCROOT)/../shared/build/xcode-frameworks/$(CONFIGURATION)/$(SDK_NAME)
         OTHER_LDFLAGS: [-framework, Shared]
