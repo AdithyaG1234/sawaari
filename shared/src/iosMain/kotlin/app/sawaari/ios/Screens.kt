@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.Sos
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
@@ -49,7 +51,7 @@ import app.sawaari.offline.formatBytes
 import app.sawaari.offline.regionPresets
 import platform.Foundation.NSBundle
 
-/** Profile and settings. More sections (group, SOS, rides, garage) arrive in the next steps. */
+/** Profile and settings. */
 @Composable
 internal fun SettingsScreen(
     palette: AppPalette,
@@ -59,6 +61,8 @@ internal fun SettingsScreen(
     onOfflineMaps: () -> Unit,
     onRides: () -> Unit,
     onSos: () -> Unit,
+    onGarage: () -> Unit,
+    onTour: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -77,6 +81,12 @@ internal fun SettingsScreen(
             Icon(Icons.Default.Timeline, null); Spacer(Modifier.width(8.dp)); Text("Your rides")
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("Vehicles and service", style = MaterialTheme.typography.titleMedium)
+        Text("Odometer from your rides, service reminders and insurance or PUC expiry.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onGarage, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Vehicles and service")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Offline maps", style = MaterialTheme.typography.titleMedium)
         Text("Download maps for areas with no signal.", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = onOfflineMaps, modifier = Modifier.fillMaxWidth()) {
@@ -85,6 +95,10 @@ internal fun SettingsScreen(
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)
         ThemeOptions(palette, mode, onPalette, onMode)
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        OutlinedButton(onClick = onTour, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.AutoMirrored.Filled.HelpOutline, null); Spacer(Modifier.width(8.dp)); Text("Tour guide")
+        }
         Spacer(Modifier.size(8.dp))
         val version = NSBundle.mainBundle.objectForInfoDictionaryKey("CFBundleShortVersionString") as? String ?: ""
         Text("Sawaari for iPhone $version (preview)", style = MaterialTheme.typography.bodySmall)

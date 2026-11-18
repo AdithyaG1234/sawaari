@@ -14,8 +14,6 @@ import androidx.core.content.ContextCompat
 import app.sawaari.MainActivity
 import app.sawaari.R
 
-/** Everything that is due or due soon across the garage, for a badge or a reminder. */
-data class Reminder(val key: String, val bike: String, val what: String, val status: Status)
 
 /**
  * Tells the rider when a service job or a paper comes due. Checked when the app starts and after

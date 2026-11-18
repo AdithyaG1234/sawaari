@@ -62,6 +62,9 @@ import app.sawaari.nav.NavSession
 import app.sawaari.nav.RidePlan
 import app.sawaari.nav.formatDistance
 import app.sawaari.ride.RideLog
+import app.sawaari.ride.GroupWatcher
+import app.sawaari.garage.GarageBook
+import app.sawaari.garage.Papers
 import app.sawaari.ride.SavedRide
 import app.sawaari.ride.TrackPoint
 import kotlinx.coroutines.delay
@@ -73,6 +76,7 @@ import app.sawaari.sos.SosStore
 import app.sawaari.sos.SosText
 import app.sawaari.util.nowMillis
 import kotlinx.coroutines.MainScope
+import kotlinx.coroutines.CoroutineScope
 import app.sawaari.offline.DownloadedRegion
 import app.sawaari.offline.regionPresets
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -86,12 +90,46 @@ fun MainViewController(bridge: IosMapBridge, backend: GroupBackend): UIViewContr
     val groups = GroupClient(backend, UserDefaultsStore(), scope)
     val speaker = Speaker()
     val nav = NavSession(ValhallaRouter(), scope, speaker::speak)
-    val rides = RideLog(DocumentsRideFiles())
+    // The garage reads rides for its odometers, and rides are tagged with the garage's current bike.
+    lateinit var rides: RideLog
+    val garage = documentsGarage { rides }
+    rides = RideLog(DocumentsRideFiles()) { garage.currentBikeId() }
+    rides.onRideSaved = { GarageAlerts.check(garage) }
     val sos = SosStore(UserDefaultsStore())
-    return ComposeUIViewController { SawaariIosApp(bridge, groups, nav, rides, sos) }
+    watchGroup(scope, groups, nav)
+    return ComposeUIViewController { SawaariIosApp(bridge, groups, nav, rides, sos, garage) }
 }
 
-private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT, RIDES, SOS }
+/**
+ * Group alerts (unplanned stops, falling behind, missed turns, no signal) and chat messages while the
+ * app is in the background, like Android's ride service. Runs outside Compose so it keeps working with the screen off.
+ */
+private fun watchGroup(scope: CoroutineScope, groups: GroupClient, nav: NavSession) {
+    val watcher = GroupWatcher()
+    scope.launch {
+        groups.group.collect { g ->
+            if (g == null) return@collect
+            val planned = listOfNotNull(g.plan?.start, g.plan?.end, g.meet?.point) + g.plan?.stops.orEmpty()
+            val navRoute = if (nav.navigating.value) nav.route.value?.points else null
+            watcher.check(g.riders, groups.myUid, nav.myPosition, nowMillis(), planned, navRoute).forEach { a ->
+                notifyNow(a.title, a.text, id = "sawaari-${a.key}")
+                if (a.urgent) alarmBeep()
+                nav.announce(a.title)
+            }
+        }
+    }
+    scope.launch {
+        var since = nowMillis()
+        groups.chat.collect { msgs ->
+            if (appInBackground()) msgs.filter { it.ts > since && it.uid != groups.myUid }.forEach { m ->
+                notifyNow(m.name, if (m.voiceMs > 0) "Voice note (${(m.voiceMs + 500) / 1000} s)" else m.text, id = "sawaari-chat-${m.id}")
+            }
+            msgs.maxOfOrNull { it.ts }?.let { if (it > since) since = it }
+        }
+    }
+}
+
+private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT, RIDES, SOS, GARAGE }
 
 /**
  * Test hooks for the simulator screenshots in CI, passed as launch arguments
@@ -113,10 +151,14 @@ private object LaunchArgs {
     val demoSearch: String? = d.stringForKey("SawaariDemoSearch")
     /** Open this route link as if it was shared to the app. */
     val demoLink: String? = d.stringForKey("SawaariDemoLink")
+    /** Add a sample bike with some service history to the garage. */
+    val demoGarage: Boolean = d.boolForKey("SawaariDemoGarage")
+    /** YES shows the tour, NO hides it; unset means "show it on first launch". */
+    val tour: Boolean? = if (d.objectForKey("SawaariTour") != null) d.boolForKey("SawaariTour") else null
 }
 
 @Composable
-fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, rides: RideLog, sos: SosStore) {
+fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, rides: RideLog, sos: SosStore, garage: GarageBook) {
     val palette by ThemeSettings.palette.collectAsState()
     val mode by ThemeSettings.mode.collectAsState()
     val regionsFlow = remember { MutableStateFlow<List<DownloadedRegion>>(emptyList()) }
@@ -140,6 +182,7 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
     var pressedLabel by remember { mutableStateOf<String?>(null) }
     var notice by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    var showTour by remember { mutableStateOf(LaunchArgs.tour ?: !Tour.seen()) }
 
     // SOS: the button and crash detection share one countdown, then alert the group and open Messages.
     var sosRun by remember { mutableStateOf(if (LaunchArgs.demoSos) SosRun(SOS_COUNTDOWN_S, crash = false) else null) }
@@ -227,6 +270,8 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
         bridge.observeLongPress { p -> if (!nav.navigating.value) { pressedLabel = null; pressedPoint = p } }
         nav.onReroute = groups::reportReroute
         if (LaunchArgs.demoRides) rides.add(demoRide())
+        if (LaunchArgs.demoGarage && garage.state.value.bikes.isEmpty()) demoGarage(garage)
+        GarageAlerts.check(garage)
         if (LaunchArgs.demoRoute || LaunchArgs.demoNav) {
             // Wait for the simulator's location, then plan to Nandi Hills via Devanahalli.
             while (nav.myPosition == null) delay(200)
@@ -369,10 +414,17 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                         onOfflineMaps = { cameFromSettings = true; screen = Screen.OFFLINE },
                         onRides = { screen = Screen.RIDES },
                         onSos = { screen = Screen.SOS },
+                        onGarage = { screen = Screen.GARAGE },
+                        onTour = { showTour = true },
                     )
                 }
                 Screen.SOS -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { SosScreen(sos) }
-                Screen.RIDES -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { RideHistoryScreen(rides) }
+                Screen.RIDES -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) {
+                    val g by garage.state.collectAsState()
+                    // Only name the bike when there's more than one, like Android.
+                    RideHistoryScreen(rides, bikeName = { id -> if (g.bikes.size > 1) g.bikes.firstOrNull { it.id == id }?.name else null })
+                }
+                Screen.GARAGE -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { GarageScreen(garage, rides) }
                 Screen.OFFLINE -> SubScreen(
                     if (cameFromSettings) "Profile" else "Map",
                     onBack = { screen = if (cameFromSettings) Screen.SETTINGS else Screen.MAP },
@@ -385,6 +437,22 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                     )
                 }
             }
+            if (showTour) TourScreen(
+                onClose = { showTour = false; Tour.markSeen() },
+                onGoTo = { place ->
+                    showTour = false
+                    Tour.markSeen()
+                    screen = when (place) {
+                        TourPlace.MAP -> Screen.MAP
+                        TourPlace.OFFLINE -> { cameFromSettings = true; Screen.OFFLINE }
+                        TourPlace.GROUP -> Screen.RIDE
+                        TourPlace.SOS -> Screen.SOS
+                        TourPlace.RIDES -> Screen.RIDES
+                        TourPlace.GARAGE -> Screen.GARAGE
+                        TourPlace.COLOURS -> Screen.SETTINGS
+                    }
+                },
+            )
         }
     }
 }
@@ -535,6 +603,17 @@ private fun SubScreen(backLabel: String, onBack: () -> Unit, content: @Composabl
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding).background(MaterialTheme.colorScheme.background)) { content() }
     }
+}
+
+/** A sample bike for the CI screenshots: 18,400 km on the meter, oil changed 2,600 km ago. */
+private fun demoGarage(garage: GarageBook) {
+    garage.addBike("Himalayan 450", 18_400.0)
+    val bike = garage.state.value.bikes.first()
+    val day = 24 * 3600_000L
+    bike.items.first { it.id == "oil" }.let { garage.saveItem(bike.id, it.copy(lastKm = 15_800.0, lastAt = nowMillis() - 120 * day)) }
+    bike.items.first { it.id == "chain" }.let { garage.saveItem(bike.id, it.copy(lastKm = 17_850.0, lastAt = nowMillis() - 40 * day)) }
+    garage.setPaper(bike.id, Papers.INSURANCE, nowMillis() + 12 * day)
+    garage.setPaper(bike.id, Papers.PUC, nowMillis() + 140 * day)
 }
 
 /** A sample ride for the CI screenshots: a loop north of Bengaluru, one fix a minute. */

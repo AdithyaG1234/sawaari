@@ -59,12 +59,15 @@ jobs:
           shot() { # name, wait seconds, launch arguments...
             local name=$1 wait=$2; shift 2
             xcrun simctl terminate "$DEVICE" app.sawaari 2>/dev/null || true
-            xcrun simctl launch "$DEVICE" app.sawaari "$@"
+            # The tour shows on first launch; skip it in the other shots unless they ask for it.
+            local extra=()
+            [[ "$name" == first-launch || " $* " == *" -SawaariTour "* ]] || extra=(-SawaariTour NO)
+            xcrun simctl launch "$DEVICE" app.sawaari "$@" "${extra[@]}"
             sleep "$wait"
             xcrun simctl io "$DEVICE" screenshot "screenshots/$name.png"
           }
           xcrun simctl ui "$DEVICE" appearance light
-          # First launch: let the app start and get its location, then take the map screenshot.
+          # First launch: the tour shows by itself while the app gets its location.
           shot first-launch 15
           xcrun simctl location "$DEVICE" set 12.9716,77.5946 || true
           shot map 20
@@ -73,6 +76,8 @@ jobs:
           shot route 25 -SawaariDemoRoute YES
           shot navigating 25 -SawaariDemoNav YES
           shot rides 10 -SawaariScreen rides -SawaariDemoRides YES
+          shot garage 8 -SawaariScreen garage -SawaariDemoGarage YES
+          shot tour 4 -SawaariTour YES
           shot sos-settings 8 -SawaariScreen sos
           shot sos 3 -SawaariDemoSos YES
           shot search 15 -SawaariDemoSearch "Nandi Hills"

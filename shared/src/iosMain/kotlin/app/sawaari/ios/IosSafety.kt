@@ -133,8 +133,7 @@ class CrashMonitor(private val onCrash: () -> Unit) {
         }
         _running.value = true
         // Ask once, so the crash countdown can show on the lock screen.
-        UNUserNotificationCenter.currentNotificationCenter()
-            .requestAuthorizationWithOptions(UNAuthorizationOptionAlert or UNAuthorizationOptionSound) { _, _ -> }
+        askNotificationPermission()
     }
 
     fun stop() {
@@ -159,11 +158,17 @@ fun alarmBeep() {
 }
 
 /** A notification that shows on the lock screen, e.g. "Crash detected". */
-fun notifyNow(title: String, body: String) {
+fun notifyNow(title: String, body: String, id: String = "sawaari-crash") {
     val content = UNMutableNotificationContent()
     content.setTitle(title)
     content.setBody(body)
     content.setSound(UNNotificationSound.defaultSound)
-    val request = UNNotificationRequest.requestWithIdentifier("sawaari-crash", content, null)
+    val request = UNNotificationRequest.requestWithIdentifier(id, content, null)
     UNUserNotificationCenter.currentNotificationCenter().addNotificationRequest(request, null)
+}
+
+/** Asks once to show notifications (crash countdown, service reminders). iOS shows the prompt only the first time. */
+fun askNotificationPermission() {
+    UNUserNotificationCenter.currentNotificationCenter()
+        .requestAuthorizationWithOptions(UNAuthorizationOptionAlert or UNAuthorizationOptionSound) { _, _ -> }
 }

@@ -177,6 +177,33 @@ class GroupClient(
         }
     }
 
+    /**
+     * Send a voice note: [base64Audio] is the recorded AAC (.m4a) file in Base64, the same format and place
+     * (chatVoice/{code}/{message id}) as on Android, so riders on either phone can play it.
+     */
+    fun sendVoice(base64Audio: String, durationMs: Long) = action {
+        val code = _group.value?.code ?: return@action
+        val uid = myUid ?: return@action
+        require(base64Audio.length <= VOICE_MAX_BASE64) { "That voice note is too long. Keep it under 30 seconds." }
+        val id = try {
+            push("chats/$code", buildJsonObject {
+                put("uid", uid)
+                put("name", _myName.value.ifBlank { "Rider" })
+                put("ts", now())
+                put("voiceMs", durationMs.coerceAtMost(30_000L))
+            })
+        } catch (e: Exception) {
+            throw IllegalArgumentException("Couldn't send. Check your internet.")
+        }
+        write("chatVoice/$code/$id", JsonPrimitive(base64Audio))
+    }
+
+    /** The audio of a voice note in Base64, or null if it can't be loaded. */
+    suspend fun loadVoice(id: String): String? {
+        val code = _group.value?.code ?: return null
+        return runCatching { (read("chatVoice/$code/$id") as? JsonPrimitive)?.contentOrNull }.getOrNull()
+    }
+
     /** Tell the group I'm stopping for a break (or that I'm riding again). */
     fun setBreak(on: Boolean) {
         val code = _group.value?.code ?: return
@@ -458,6 +485,9 @@ class GroupClient(
     private fun roleOrder(role: String) = when (role) { Role.LEADER -> 0; Role.MARSHAL -> 1; Role.MEDIC -> 2; Role.SWEEP -> 4; else -> 3 }
 
     companion object {
+        /** 90 KB of audio (Android's limit, about 30 s) in Base64. */
+        const val VOICE_MAX_BASE64 = 120_000
+
         const val CODE_LENGTH = 6
         const val CHAT_KEEP = 60
         const val PUBLISH_INTERVAL_MS = 10_000L

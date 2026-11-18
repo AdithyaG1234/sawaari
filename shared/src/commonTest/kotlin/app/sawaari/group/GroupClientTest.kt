@@ -138,6 +138,21 @@ class GroupClientTest {
         assertEquals(clock, db.get("groups/$code/members/riderUid/sosAt").toString().toLong())
     }
 
+    @Test fun voiceNotesUseTheAndroidLayout() = kotlinx.coroutines.test.runTest {
+        val db = FakeBackend("leaderUid")
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Ride")
+        val code = leader.group.value!!.code
+        leader.sendVoice("AAAAGGZ0eXBNNEEg", 4200)
+        val msg = leader.chat.value.single()
+        assertEquals(4200L, msg.voiceMs)
+        assertEquals("\"AAAAGGZ0eXBNNEEg\"", db.get("chatVoice/$code/${msg.id}").toString())
+        assertEquals("AAAAGGZ0eXBNNEEg", leader.loadVoice(msg.id))
+        leader.sendVoice("x".repeat(GroupClient.VOICE_MAX_BASE64 + 1), 31_000)
+        assertEquals(1, leader.chat.value.size)
+        assertNotNull(leader.error.value)
+    }
+
     @Test fun leaveRemovesMe() {
         val db = FakeBackend("u1")
         val store = MemoryStore()
