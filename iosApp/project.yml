@@ -16,8 +16,8 @@ packages:
     from: "11.0.0"
 settings:
   base:
-    MARKETING_VERSION: "0.4.0"
-    CURRENT_PROJECT_VERSION: "4"
+    MARKETING_VERSION: "0.5.0"
+    CURRENT_PROJECT_VERSION: "5"
 targets:
   Sawaari:
     type: application
@@ -29,6 +29,11 @@ targets:
         product: FirebaseAuth
       - package: Firebase
         product: FirebaseDatabase
+      # System frameworks the shared Kotlin code uses: SOS texts, crash detection, alerts, beeps.
+      - sdk: MessageUI.framework
+      - sdk: CoreMotion.framework
+      - sdk: UserNotifications.framework
+      - sdk: AudioToolbox.framework
     info:
       path: Sawaari/Info.plist
       properties:
@@ -44,6 +49,10 @@ targets:
         NSLocationAlwaysAndWhenInUseUsageDescription: While you're in a ride group, Sawaari keeps sharing your location with the group when the screen is off.
         # Keeps sharing location with the ride group with the screen off, like Android's ride service.
         UIBackgroundModes: [location, audio]
+        # Route links shared from Sawaari open in the app: sawaari://route?...
+        CFBundleURLTypes:
+          - CFBundleURLName: app.sawaari.route
+            CFBundleURLSchemes: [sawaari]
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: app.sawaari

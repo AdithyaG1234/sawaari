@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.Timeline
+import androidx.compose.material.icons.filled.Sos
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Card
 import androidx.compose.material3.FilterChip
@@ -57,12 +58,19 @@ internal fun SettingsScreen(
     onMode: (DarkMode) -> Unit,
     onOfflineMaps: () -> Unit,
     onRides: () -> Unit,
+    onSos: () -> Unit,
 ) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         Text("Profile and settings", style = MaterialTheme.typography.headlineSmall)
+        Text("SOS", style = MaterialTheme.typography.titleMedium)
+        Text("Emergency contacts, medical info and crash detection.", style = MaterialTheme.typography.bodySmall)
+        OutlinedButton(onClick = onSos, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.Sos, null); Spacer(Modifier.width(8.dp)); Text("SOS and emergency contacts")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Your rides", style = MaterialTheme.typography.titleMedium)
         Text("Rides are recorded while you navigate or ride with a group.", style = MaterialTheme.typography.bodySmall)
         OutlinedButton(onClick = onRides, modifier = Modifier.fillMaxWidth()) {

@@ -7,6 +7,8 @@ struct SawaariApp: App {
         WindowGroup {
             ComposeView()
                 .ignoresSafeArea(.all)
+                // Route links shared from Sawaari (sawaari://route?...) open as a ride plan.
+                .onOpenURL { url in IosSafetyKt.openLink(url: url.absoluteString) }
         }
     }
 }

@@ -10,8 +10,6 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLEncoder
 
-/** A search hit: something to put on the ride plan. */
-data class SearchResult(val name: String, val detail: String, val point: GeoPoint, val online: Boolean)
 
 /**
  * Finds places by name. Offline it searches towns and places in the downloaded area's places file;

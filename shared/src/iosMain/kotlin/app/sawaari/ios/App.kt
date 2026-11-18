@@ -65,6 +65,12 @@ import app.sawaari.ride.RideLog
 import app.sawaari.ride.SavedRide
 import app.sawaari.ride.TrackPoint
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
+import app.sawaari.places.SearchResult
+import app.sawaari.sos.SosFix
+import app.sawaari.sos.SosStore
+import app.sawaari.sos.SosText
 import app.sawaari.util.nowMillis
 import kotlinx.coroutines.MainScope
 import app.sawaari.offline.DownloadedRegion
@@ -81,10 +87,11 @@ fun MainViewController(bridge: IosMapBridge, backend: GroupBackend): UIViewContr
     val speaker = Speaker()
     val nav = NavSession(ValhallaRouter(), scope, speaker::speak)
     val rides = RideLog(DocumentsRideFiles())
-    return ComposeUIViewController { SawaariIosApp(bridge, groups, nav, rides) }
+    val sos = SosStore(UserDefaultsStore())
+    return ComposeUIViewController { SawaariIosApp(bridge, groups, nav, rides, sos) }
 }
 
-private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT, RIDES }
+private enum class Screen { MAP, SETTINGS, OFFLINE, RIDE, CHAT, RIDES, SOS }
 
 /**
  * Test hooks for the simulator screenshots in CI, passed as launch arguments
@@ -100,10 +107,16 @@ private object LaunchArgs {
     val demoNav: Boolean = d.boolForKey("SawaariDemoNav")
     /** Save a sample ride so the ride history has something to show. */
     val demoRides: Boolean = d.boolForKey("SawaariDemoRides")
+    /** Show the SOS countdown as if the SOS button was pressed. */
+    val demoSos: Boolean = d.boolForKey("SawaariDemoSos")
+    /** Type this into the search box. */
+    val demoSearch: String? = d.stringForKey("SawaariDemoSearch")
+    /** Open this route link as if it was shared to the app. */
+    val demoLink: String? = d.stringForKey("SawaariDemoLink")
 }
 
 @Composable
-fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, rides: RideLog) {
+fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, rides: RideLog, sos: SosStore) {
     val palette by ThemeSettings.palette.collectAsState()
     val mode by ThemeSettings.mode.collectAsState()
     val regionsFlow = remember { MutableStateFlow<List<DownloadedRegion>>(emptyList()) }
@@ -124,15 +137,94 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
     val route by nav.route.collectAsState()
     val navMessage by nav.message.collectAsState()
     var pressedPoint by remember { mutableStateOf<GeoPoint?>(null) }
+    var pressedLabel by remember { mutableStateOf<String?>(null) }
+    var notice by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
+
+    // SOS: the button and crash detection share one countdown, then alert the group and open Messages.
+    var sosRun by remember { mutableStateOf(if (LaunchArgs.demoSos) SosRun(SOS_COUNTDOWN_S, crash = false) else null) }
+    var lastFix by remember { mutableStateOf<LocationFix?>(null) }
+    val crashOn by sos.crashDetection.collectAsState()
+    val crash = remember {
+        CrashMonitor {
+            if (sosRun == null) {
+                sosRun = SosRun(CRASH_COUNTDOWN_S, crash = true)
+                notifyNow("Crash detected", "Sending SOS in $CRASH_COUNTDOWN_S seconds. Open Sawaari and tap I'm OK if you're fine.")
+            }
+        }
+    }
+    LaunchedEffect(crashOn) { if (crashOn) crash.start() else crash.stop() }
+    fun sendSos(afterCrash: Boolean) {
+        val f = lastFix
+        val groupAlerted = groups.sendSos(f?.lat, f?.lon)
+        val now = nowMillis()
+        val sosFix = f?.let {
+            SosFix(it.lat, it.lon, it.accuracy.takeIf { a -> a > 0 }?.toInt(), ((now - it.timeMillis) / 60_000).coerceAtLeast(0), clockTime(it.timeMillis))
+        }
+        val text = (if (afterCrash) "Possible crash detected. " else "") + SosText.message(groups.myName.value, sosFix, sos.medical.value)
+        val contacts = sos.contacts.value
+        val groupNote = if (groupAlerted) " Your ride group has been alerted." else ""
+        when {
+            contacts.isEmpty() -> notice = "No emergency contacts saved.$groupNote Add contacts in Profile, SOS."
+            SmsComposer.canSend -> SmsComposer.compose(contacts.map { it.phone }, text) { sent ->
+                notice = (if (sent) "SOS text sent." else "SOS text was NOT sent.") + groupNote
+            }
+            else -> {
+                notice = "This iPhone can't send texts, so pick an app to send the SOS.$groupNote"
+                shareText(text)
+            }
+        }
+    }
+    LaunchedEffect(sosRun) {
+        val run = sosRun ?: return@LaunchedEffect
+        if (run.left <= 0) { sosRun = null; sendSos(run.crash); return@LaunchedEffect }
+        if (run.crash) alarmBeep()
+        delay(1_000)
+        if (sosRun == run) sosRun = run.copy(left = run.left - 1)
+    }
+    // A new SOS from the group: beep and say it out loud, like Android.
+    LaunchedEffect(alerts.firstOrNull()?.id) {
+        val a = alerts.firstOrNull() ?: return@LaunchedEffect
+        alarmBeep()
+        nav.announce("SOS from ${a.name}.")
+    }
+
+    // Route links: shared to the app (sawaari://route?...) or pasted into the search box.
+    fun openRouteLink(text: String) {
+        scope.launch {
+            try {
+                val lp = IosPlaceSearch.importLink(text, myPosition)
+                lp.names.forEach { (p, n) -> nav.setLabel(p, n) }
+                nav.loadPlan(lp.plan)
+                screen = Screen.MAP
+                if (lp.skipped > 0) notice = "${lp.skipped} place${if (lp.skipped == 1) "" else "s"} in the link couldn't be found and ${if (lp.skipped == 1) "was" else "were"} left out."
+            } catch (e: Exception) {
+                notice = e.message ?: "Couldn't open that link."
+            }
+        }
+    }
+    val incoming by IncomingLinks.pending.collectAsState()
+    LaunchedEffect(incoming) {
+        val link = incoming ?: return@LaunchedEffect
+        IncomingLinks.pending.value = null
+        // A link that starts "from my location" needs a GPS fix first; wait a few seconds for one.
+        var waited = 0
+        while (nav.myPosition == null && waited < 20) { delay(250); waited++ }
+        openRouteLink(link)
+    }
+    LaunchedEffect(Unit) { LaunchArgs.demoLink?.let { IncomingLinks.pending.value = it } }
+
     LaunchedEffect(Unit) {
         bridge.observeLocation { fix ->
             val p = GeoPoint(fix.lat, fix.lon)
             myPosition = p
+            lastFix = fix
+            crash.onSpeed(if (fix.speedMps >= 0) fix.speedMps * 3.6 else -1.0)
             nav.onLocation(p, fix.accuracy)
             rides.onLocation(fix.lat, fix.lon, fix.timeMillis, if (fix.speedMps >= 0) fix.speedMps * 3.6 else -1.0)
             groups.publish(fix.lat, fix.lon, fix.speedMps, fix.course)
         }
-        bridge.observeLongPress { p -> if (!nav.navigating.value) pressedPoint = p }
+        bridge.observeLongPress { p -> if (!nav.navigating.value) { pressedLabel = null; pressedPoint = p } }
         nav.onReroute = groups::reportReroute
         if (LaunchArgs.demoRides) rides.add(demoRide())
         if (LaunchArgs.demoRoute || LaunchArgs.demoNav) {
@@ -212,6 +304,14 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                 navigating = navigating,
                 onSharePlan = if (group != null && group?.leaderUid == groups.myUid) groups::sharePlan else null,
                 sharedPlan = group?.plan,
+                myPosition = myPosition,
+                onSos = { if (sosRun == null) sosRun = SosRun(SOS_COUNTDOWN_S, crash = false) },
+                onSearchPick = { r ->
+                    bridge.moveTo(r.point.lat, r.point.lon, 13.0)
+                    pressedLabel = r.name
+                    pressedPoint = r.point
+                },
+                onLink = ::openRouteLink,
                 onDownloadArea = { name ->
                     bridge.download(name, bridge.visibleBounds(), MIN_ZOOM, MAX_ZOOM)
                     cameFromSettings = false
@@ -222,8 +322,23 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                 val g = group
                 PlaceActionsDialog(
                     p, nav,
-                    onSetMeetingPoint = if (g != null && g.leaderUid == groups.myUid) ({ groups.setMeetingPoint(it, 0L, "") }) else null,
+                    onSetMeetingPoint = if (g != null && g.leaderUid == groups.myUid) ({ groups.setMeetingPoint(it, 0L, pressedLabel.orEmpty()) }) else null,
                     onDismiss = { pressedPoint = null },
+                    label = pressedLabel,
+                )
+            }
+            sosRun?.let { run ->
+                SosCountdownDialog(
+                    run.left, run.crash,
+                    onSendNow = { sosRun = run.copy(left = 0) },
+                    onCancel = { sosRun = null },
+                )
+            }
+            notice?.let { m ->
+                AlertDialog(
+                    onDismissRequest = { notice = null },
+                    text = { Text(m) },
+                    confirmButton = { TextButton(onClick = { notice = null }) { Text("OK") } },
                 )
             }
             navMessage?.let { m ->
@@ -253,8 +368,10 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                         onMode = ThemeSettings::setMode,
                         onOfflineMaps = { cameFromSettings = true; screen = Screen.OFFLINE },
                         onRides = { screen = Screen.RIDES },
+                        onSos = { screen = Screen.SOS },
                     )
                 }
+                Screen.SOS -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { SosScreen(sos) }
                 Screen.RIDES -> SubScreen("Profile", onBack = { screen = Screen.SETTINGS }) { RideHistoryScreen(rides) }
                 Screen.OFFLINE -> SubScreen(
                     if (cameFromSettings) "Profile" else "Map",
@@ -287,6 +404,10 @@ private fun MapHome(
     navigating: Boolean,
     onSharePlan: ((RidePlan) -> Unit)?,
     sharedPlan: RidePlan?,
+    myPosition: GeoPoint?,
+    onSos: () -> Unit,
+    onSearchPick: (SearchResult) -> Unit,
+    onLink: (String) -> Unit,
     onDownloadArea: (String) -> Unit,
 ) {
     var askName by remember { mutableStateOf(false) }
@@ -311,11 +432,20 @@ private fun MapHome(
                 text = { Text(rideLabel) },
                 modifier = Modifier.align(Alignment.TopEnd).padding(top = if (navigating) 150.dp else 64.dp),
             )
+            // Last, so its results show over the buttons.
+            if (!navigating) SearchBox(
+                near = myPosition,
+                onPick = onSearchPick,
+                onLink = onLink,
+                prefill = LaunchArgs.demoSearch,
+                modifier = Modifier.align(Alignment.TopStart).fillMaxWidth().padding(end = 60.dp),
+            )
             Column(
                 Modifier.align(Alignment.BottomEnd),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 horizontalAlignment = Alignment.End,
             ) {
+                SosButton(onClick = onSos)
                 SmallFloatingActionButton(onClick = { if (navigating) bridge.setNavigating(true) else bridge.centerOnMe() }) {
                     Icon(Icons.Default.MyLocation, contentDescription = "My location")
                 }
