@@ -7,10 +7,17 @@
           ".read": "auth != null",
           ".write": "auth != null && (!data.exists() ? newData.child('leader').val() === auth.uid : (data.child('leader').val() === auth.uid || (root.child('groups').child($code).child('members').child(auth.uid).exists() && newData.child('leader').val() === auth.uid && newData.child('name').val() === data.child('name').val() && newData.child('createdAt').val() === data.child('createdAt').val() && (!root.child('groups').child($code).child('members').child(data.child('leader').val()).exists() || (root.child('groups').child($code).child('locations').child(data.child('leader').val()).child('ts').exists() && root.child('groups').child($code).child('locations').child(data.child('leader').val()).child('ts').val() < now - 600000) || (root.child('groups').child($code).child('members').child(data.child('leader').val()).child('sosAt').exists() && root.child('groups').child($code).child('members').child(data.child('leader').val()).child('sosAt').val() > now - 3600000)))))"
         },
+        "slots": {
+          ".read": "auth != null",
+          "$n": {
+            ".write": "auth != null && (newData.exists() ? (!data.exists() && newData.val() === auth.uid) : (data.val() === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid))",
+            ".validate": "newData.isString() && ($n.matches(/^[1-3]$/) || ($n.matches(/^([4-9]|[1-9][0-9])$/) && root.child('subs').child(newData.parent().parent().child('meta').child('leader').val()).child('until').val() > now))"
+          }
+        },
         "members": {
           "$uid": {
             ".write": "auth != null && root.child('groups').child($code).child('meta').exists() && ($uid === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid || newData.parent().parent().child('meta').child('leader').val() === auth.uid)",
-            ".validate": "!newData.exists() || (newData.hasChildren(['name', 'role']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('role').val().matches(/^(leader|sweep|rider|marshal|medic)$/) && (newData.child('role').val() !== 'leader' || newData.parent().parent().child('meta').child('leader').val() === $uid))",
+            ".validate": "!newData.exists() || (newData.hasChildren(['name', 'role']) && newData.child('name').isString() && newData.child('name').val().length <= 40 && newData.child('role').val().matches(/^(leader|sweep|rider|marshal|medic)$/) && (newData.child('role').val() !== 'leader' || newData.parent().parent().child('meta').child('leader').val() === $uid) && (data.exists() || (newData.child('slot').isString() && newData.parent().parent().child('slots').child(newData.child('slot').val()).val() === $uid)))",
             "breakAt": {
               ".validate": "newData.isNumber() && newData.val() <= now + 60000"
             },
@@ -33,7 +40,7 @@
         },
         "locations": {
           "$uid": {
-            ".write": "auth != null && $uid === auth.uid && (!newData.exists() || root.child('groups').child($code).child('members').child(auth.uid).exists())",
+            ".write": "auth != null && (($uid === auth.uid && (!newData.exists() || root.child('groups').child($code).child('members').child(auth.uid).exists())) || (!newData.exists() && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid))",
             ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber())"
           }
         },
@@ -70,6 +77,12 @@
           ".write": "auth != null && !data.exists() && root.child('groups').child($code).child('members').child(auth.uid).exists()",
           ".validate": "newData.isString() && newData.val().length <= 125000"
         }
+      }
+    },
+    "subs": {
+      "$uid": {
+        ".read": "auth != null",
+        ".write": false
       }
     },
     "places": {

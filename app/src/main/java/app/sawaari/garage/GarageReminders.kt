@@ -33,6 +33,8 @@ object GarageReminders {
         }.filter { it.status.level != Level.OK }
 
     fun check(context: Context) {
+        // Reminders are part of the garage, which is free for 2 weeks and then needs Sawaari Pro.
+        if (!app.sawaari.plans.Pro.garageOpen()) return
         val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val sent = prefs.getStringSet(KEY_SENT, emptySet()).orEmpty()
         val due = all()

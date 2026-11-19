@@ -64,9 +64,21 @@ Actions → Build APK → Run workflow, enter a version such as `1.0.0` (or push
 1. Create a Firebase project and add an Android app with package `app.sawaari`.
 2. Create a Realtime Database, then enable Anonymous sign-in under Authentication.
 3. Download `google-services.json` (after creating the database) into `app/`.
-4. Paste `database.rules.json` into Realtime Database → Rules and publish.
+4. Paste `database.rules.json` into Realtime Database → Rules and publish (or `firebase deploy --only database`).
 
 Without `google-services.json` the app still builds; the Group tab just explains the setup.
+
+## Free and Pro plans
+- **Free:** maps, offline navigation, SOS, crash detection, ride history, and ride groups of up to 3 riders. The garage is free for the first 14 days.
+- **Sawaari Pro:** ₹200 for 3 months or ₹500 a year, through Google Play. Groups led by a Pro rider take up to 99 riders (riders who join don't pay), and the garage stays open.
+
+The limits live in `shared/.../plans/Plans.kt`. The 3-rider limit is also enforced by `database.rules.json`: each rider holds a numbered seat at `groups/{code}/slots/{n}`, and seats 4+ need `subs/{leader}/until` in the future, which only the server function can write.
+
+### Pro setup (once, before the Play Store launch)
+1. Play Console → Monetize → Subscriptions: create product `sawaari_pro` with two auto-renewing base plans, `quarterly` (3 months, ₹200) and `yearly` (1 year, ₹500). Activate both.
+2. Firebase: switch the project to the Blaze plan (functions need it; this use stays inside the free quota), then `firebase deploy --only functions,database` from the repo root.
+3. Play Console → Users and permissions: invite `PROJECT_ID@appspot.gserviceaccount.com` with "View financial data" and "Manage orders and subscriptions", so the function can check purchases.
+4. Test with a licence tester account (Play Console → Settings → License testing) on an internal testing build. Purchases only work for builds installed from Google Play.
 
 ## Build
 Open the folder in Android Studio (Ladybug or newer) and press Run, or:

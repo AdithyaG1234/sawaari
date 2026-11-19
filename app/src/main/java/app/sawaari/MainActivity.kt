@@ -70,6 +70,10 @@ import app.sawaari.ui.theme.ThemeSettings
 import app.sawaari.ui.theme.ThemePickerDialog
 import app.sawaari.tour.TourGuide
 import app.sawaari.tour.TourGuideDialog
+import app.sawaari.plans.GarageLocked
+import app.sawaari.plans.Pro
+import app.sawaari.plans.ProDialog
+import app.sawaari.plans.ProReason
 
 class MainActivity : ComponentActivity() {
     /** A route link that opened the app (Sawaari or Google Maps link, or text shared to Sawaari). */
@@ -127,6 +131,8 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(tab) { if (tab == 0 || tab == 4) backToSettings = false }
                 val app = application as SawaariApp
                 var showThemes by rememberSaveable { mutableStateOf(false) }
+                val proState by Pro.state.collectAsState()
+                var showPro by remember { mutableStateOf<ProReason?>(null) }
                 var showTour by rememberSaveable { mutableStateOf(TourGuide.shouldShow(applicationContext)) }
                 // A route link opening the app on first launch goes straight to the route, not the tour.
                 LaunchedEffect(Unit) { if (incomingLink.value != null) { showTour = false; TourGuide.markSeen(applicationContext) } }
@@ -231,13 +237,16 @@ class MainActivity : ComponentActivity() {
                                 onGroup = { tab = 2; backToSettings = true },
                                 onOfflineMaps = { tab = 1; backToSettings = true },
                                 onGarage = { tab = 6 },
+                                proActive = proState.active,
+                                onPro = { showPro = ProReason.SETTINGS },
                                 modifier = Modifier.fillMaxSize(),
                             )
                         }
                         androidx.activity.compose.BackHandler(enabled = tab == 1 || tab == 2) { tab = if (backToSettings) 4 else 0 }
                         androidx.activity.compose.BackHandler(enabled = tab == 6) { tab = 4 }
                         if (tab == 6) SubScreen("Profile", onBack = { tab = 4 }) {
-                            GarageScreen(Modifier.fillMaxSize())
+                            if (proState.active || Pro.garageOpen()) GarageScreen(Modifier.fillMaxSize())
+                            else GarageLocked(onGetPro = { showPro = ProReason.GARAGE }, Modifier.fillMaxSize())
                         }
                         androidx.activity.compose.BackHandler(enabled = tab == 5) { tab = 4 }
                         if (tab == 5) SubScreen("Profile", onBack = { tab = 4 }) {
@@ -278,6 +287,7 @@ class MainActivity : ComponentActivity() {
                     onGoTo = { showTour = false; TourGuide.markSeen(applicationContext); tab = it.index },
                     onTheme = { showThemes = true },
                 )
+                showPro?.let { ProDialog(it, onDismiss = { showPro = null }) }
                 if (showThemes) ThemePickerDialog(
                     palette = palette, mode = darkMode,
                     onPalette = { ThemeSettings.setPalette(applicationContext, it) },

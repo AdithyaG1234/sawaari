@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Location
 import app.sawaari.geo.GeoPoint
 import app.sawaari.nav.RidePlan
+import app.sawaari.plans.Plans
 import com.google.firebase.FirebaseApp
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.database.DataSnapshot
@@ -24,7 +25,9 @@ import kotlinx.coroutines.tasks.await
  *
  * Data layout (see database.rules.json):
  *   groups/{code}/meta              {name, leader, createdAt}
- *   groups/{code}/members/{uid}     {name, role, joinedAt, breakAt?, sosAt?}
+ *   groups/{code}/slots/{n}         uid   (numbered seats: 1-3 free, more need the leader's Sawaari Pro)
+ *   groups/{code}/members/{uid}     {name, role, slot, joinedAt, breakAt?, sosAt?}
+ *   subs/{uid}                      {until, plan}  (written only by the server, see functions/)
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
  *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
@@ -102,7 +105,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         db.getReference("groups/$code/meta").setValue(
             mapOf("name" to groupName.trim().ifBlank { "Weekend ride" }.take(60), "leader" to uid, "createdAt" to System.currentTimeMillis())
         ).await()
-        db.getReference("groups/$code/members/$uid").setValue(member(Role.LEADER)).await()
+        takeSeat(code, uid, Role.LEADER, leaderUid = uid)
         enter(code)
     }
 
@@ -110,9 +113,46 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         val code = rawCode.trim().uppercase()
         if (code.length != CODE_LENGTH) throw IllegalArgumentException("Codes are $CODE_LENGTH letters, like K7QM2P.")
         val uid = signIn()
-        if (!db.getReference("groups/$code/meta").get().await().exists()) throw IllegalArgumentException("No ride group with code $code.")
-        db.getReference("groups/$code/members/$uid").setValue(member(Role.RIDER)).await()
+        val meta = db.getReference("groups/$code/meta").get().await()
+        if (!meta.exists()) throw IllegalArgumentException("No ride group with code $code.")
+        takeSeat(code, uid, Role.RIDER, meta.child("leader").getValue(String::class.java).orEmpty())
         enter(code)
+    }
+
+    /**
+     * Claim the lowest free seat and join in one write, so the server rules can check the seat limit
+     * (3 riders unless the leader has Sawaari Pro). Two riders may race for a seat; the loser tries the next.
+     */
+    private suspend fun takeSeat(code: String, uid: String, role: String, leaderUid: String) {
+        val until = if (leaderUid.isEmpty()) null
+            else db.getReference("subs/$leaderUid/until").get().await().getValue(Long::class.java)
+        val pro = Plans.subscriptionActive(until, System.currentTimeMillis())
+        repeat(3) {
+            val slots = db.getReference("groups/$code/slots").get().await()
+            val mine = slots.children.firstOrNull { it.getValue(String::class.java) == uid }?.key
+            val seat = mine ?: Plans.freeSeat(slots.children.mapNotNull { it.key }, pro)?.toString()
+                ?: throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+            val ok = runCatching {
+                db.getReference("groups/$code").updateChildren(
+                    mapOf("slots/$seat" to uid, "members/$uid" to member(role) + ("slot" to seat))
+                ).await()
+            }.isSuccess
+            if (ok) return
+        }
+        // Reads worked but the server refused every seat: the group filled up (or the leader's Pro ended).
+        throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+    }
+
+    /** Leader only: take [uid] out of the group, freeing their seat (e.g. someone who changed phones). */
+    fun removeRider(uid: String) = action {
+        val g = _group.value ?: return@action
+        db.getReference("groups/${g.code}").updateChildren(mapOf("locations/$uid" to null, "members/$uid" to null)).await()
+        freeSeats(g.code, uid)
+    }
+
+    private suspend fun freeSeats(code: String, uid: String) {
+        val slots = runCatching { db.getReference("groups/$code/slots").get().await() }.getOrNull() ?: return
+        slots.children.filter { it.getValue(String::class.java) == uid }.forEach { it.ref.removeValue() }
     }
 
     fun leave() = action {
@@ -124,6 +164,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         myUid?.let { uid ->
             db.getReference("groups/$code/locations/$uid").removeValue()
             db.getReference("groups/$code/members/$uid").removeValue()
+            freeSeats(code, uid)
         }
     }
 

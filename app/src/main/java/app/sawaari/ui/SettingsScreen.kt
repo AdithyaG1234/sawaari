@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.DownloadForOffline
 import androidx.compose.material.icons.filled.TwoWheeler
+import androidx.compose.material.icons.filled.WorkspacePremium
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -48,6 +49,8 @@ fun SettingsScreen(
     onGarage: () -> Unit,
     onGroup: () -> Unit,
     onOfflineMaps: () -> Unit,
+    proActive: Boolean = false,
+    onPro: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -95,14 +98,30 @@ fun SettingsScreen(
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Your garage", style = MaterialTheme.typography.titleMedium)
-        val due = remember(Unit) { GarageReminders.all().size }
+        val trialLeft = remember(Unit) { app.sawaari.plans.Pro.garageTrialDaysLeft() }
+        val due = remember(Unit) { if (proActive || trialLeft > 0) GarageReminders.all().size else 0 }
         Text(
-            if (due > 0) "$due job${if (due == 1) "" else "s"} need attention." else "Your motorcycles, cars and bicycles: service reminders and insurance and PUC expiry dates.",
+            when {
+                due > 0 -> "$due job${if (due == 1) "" else "s"} need attention."
+                proActive -> "Your motorcycles, cars and bicycles: service reminders and insurance and PUC expiry dates."
+                trialLeft > 0 -> "Free trial: $trialLeft day${if (trialLeft == 1) "" else "s"} left, then part of Sawaari Pro. Service reminders and insurance and PUC expiry dates."
+                else -> "Part of Sawaari Pro. Your vehicles are still saved on this phone."
+            },
             style = MaterialTheme.typography.bodySmall,
             color = if (due > 0) MaterialTheme.colorScheme.error else androidx.compose.ui.graphics.Color.Unspecified,
         )
         OutlinedButton(onClick = onGarage, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Vehicles and service")
+        }
+        HorizontalDivider(Modifier.padding(vertical = 4.dp))
+        Text("Sawaari Pro", style = MaterialTheme.typography.titleMedium)
+        Text(
+            if (proActive) "Thank you! Your groups take up to ${app.sawaari.plans.Plans.PRO_GROUP_RIDERS} riders, and the garage is open."
+            else "Groups bigger than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS} riders and the garage. ${app.sawaari.plans.Plans.PRICE_QUARTERLY} for 3 months or ${app.sawaari.plans.Plans.PRICE_YEARLY} a year.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedButton(onClick = onPro, modifier = Modifier.fillMaxWidth()) {
+            Icon(Icons.Default.WorkspacePremium, null); Spacer(Modifier.width(8.dp)); Text(if (proActive) "Manage Sawaari Pro" else "See Sawaari Pro")
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)

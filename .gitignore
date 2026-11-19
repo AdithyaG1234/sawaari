@@ -16,3 +16,4 @@ iosApp/Sawaari/Info.plist
 *.xcuserstate
 xcuserdata/
 .kotlin/
+functions/node_modules/
