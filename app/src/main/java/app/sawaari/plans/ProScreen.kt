@@ -53,13 +53,13 @@ fun ProDialog(reason: ProReason, onDismiss: () -> Unit) {
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 when (reason) {
-                    ProReason.GROUP -> Text("Free ride groups take up to ${Plans.FREE_GROUP_RIDERS} riders. With Pro, groups you lead take up to ${Plans.PRO_GROUP_RIDERS}.")
+                    ProReason.GROUP -> Text("Ride groups of up to ${Plans.FREE_GROUP_RIDERS} are free. A bigger group needs Sawaari Pro for every rider in it, including the first ${Plans.FREE_GROUP_RIDERS}. Once you have it, join again with the same code.")
                     ProReason.GARAGE -> Text("Your ${Plans.GARAGE_TRIAL_DAYS}-day garage trial has ended. Your vehicles and service history are safe on this phone; Pro opens them again.")
                     ProReason.SETTINGS -> Unit
                 }
-                Perk(Icons.Default.Groups, "Bigger ride groups", "Up to ${Plans.PRO_GROUP_RIDERS} riders in groups you lead. Riders who join don't need Pro.")
+                Perk(Icons.Default.Groups, "Bigger ride groups", "Ride in groups of more than ${Plans.FREE_GROUP_RIDERS}, up to ${Plans.PRO_GROUP_RIDERS} riders, when everyone in the group has Pro.")
                 Perk(Icons.Default.TwoWheeler, "Garage", "Vehicles, service reminders, and insurance and PUC expiry alerts.")
-                Perk(Icons.Default.CheckCircle, "Everything else stays free", "Maps, offline navigation, SOS, crash detection and groups of ${Plans.FREE_GROUP_RIDERS}.")
+                Perk(Icons.Default.CheckCircle, "Everything else stays free", "Maps, offline navigation, SOS, crash detection, and groups of up to ${Plans.FREE_GROUP_RIDERS} riders.")
                 if (!state.active) state.offers.forEach { o ->
                     val best = o.basePlan == Plans.PLAN_YEARLY
                     Card(

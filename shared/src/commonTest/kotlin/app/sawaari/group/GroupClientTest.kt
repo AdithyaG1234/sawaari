@@ -10,6 +10,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
+import app.sawaari.plans.Plans
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -17,13 +18,23 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** An in-memory Realtime Database, enough to check the group logic and its data layout. */
-class FakeBackend(private var uid: String) : GroupBackend {
-    var root: JsonObject = JsonObject(emptMap())
-    private val watchers = mutableMapOf<Long, Pair<String, (String?) -> Unit>>()
-    private var next = 1L
-    private var pushId = 0
+class FakeBackend(private var uid: String, private val d: FakeDb = FakeDb()) : GroupBackend {
+    /** The data and watchers, shared by every signed-in user of the same fake database. */
+    class FakeDb {
+        var root: JsonObject = JsonObject(emptyMap())
+        val watchers = mutableMapOf<Long, Pair<String, (String?) -> Unit>>()
+        var next = 1L
+        var pushId = 0
+    }
+    private var root: JsonObject
+        get() = d.root
+        set(v) { d.root = v }
+    private val watchers get() = d.watchers
 
     fun switchUser(newUid: String) { uid = newUid }
+
+    /** Another phone signed in as [other], on the same database. */
+    fun asUser(other: String) = FakeBackend(other, d)
 
     override fun isConfigured() = true
     override fun currentUid() = uid
@@ -39,11 +50,11 @@ class FakeBackend(private var uid: String) : GroupBackend {
         callback(null)
     }
     override fun push(path: String, json: String, callback: (String?, String?) -> Unit) {
-        val key = "k${pushId++}"
+        val key = "k${d.pushId++}"
         set("$path/$key", Json.parseToJsonElement(json)); callback(key, null)
     }
     override fun observe(path: String, orderByChild: String?, limitToLast: Int, onValue: (String?) -> Unit, onError: (String) -> Unit): Long {
-        val h = next++
+        val h = d.next++
         watchers[h] = path to onValue
         onValue(get(path)?.toString())
         return h
@@ -67,7 +78,6 @@ class FakeBackend(private var uid: String) : GroupBackend {
         if (notify) notifyWatchers()
     }
 
-    private fun emptMap() = emptyMap<String, JsonElement>()
 }
 
 class MemoryStore : KeyValueStore {
@@ -176,10 +186,11 @@ class GroupSeatsTest {
     private val scope = TestScope(UnconfinedTestDispatcher())
     private val clock = 1_000_000L
 
-    private fun joinAs(db: FakeBackend, uid: String, code: String): GroupClient {
-        db.switchUser(uid)
-        return GroupClient(db, MemoryStore(), scope) { clock }.also { it.join(code) }
-    }
+    private fun joinAs(db: FakeBackend, uid: String, code: String): GroupClient =
+        GroupClient(db.asUser(uid), MemoryStore(), scope) { clock }.also { it.join(code) }
+
+    private fun givePro(db: FakeBackend, vararg uids: String) =
+        uids.forEach { db.write("subs/$it", """{"until":${clock + 1000},"plan":"yearly"}""") {} }
 
     @Test fun freeGroupStopsAtThreeRiders() {
         val db = FakeBackend("lead")
@@ -193,28 +204,50 @@ class GroupSeatsTest {
         joinAs(db, "r3", code)
         val fourth = joinAs(db, "r4", code)
         assertNull(fourth.group.value)
-        assertEquals(app.sawaari.plans.Plans.GROUP_FULL_MESSAGE, fourth.error.value)
+        assertEquals(Plans.NEED_PRO_TO_BE_FOURTH, fourth.error.value)
         assertNull(db.get("groups/$code/members/r4"))
     }
 
-    @Test fun proLeaderGetsBiggerGroupsAndLeavingFreesASeat() {
+    @Test fun pastThreeEveryoneNeedsPro() {
         val db = FakeBackend("lead")
-        db.write("subs/lead", """{"until":${clock + 1000},"plan":"yearly"}""") {}
+        givePro(db, "lead", "r2", "r4", "r6")
         val leader = GroupClient(db, MemoryStore(), scope) { clock }
         leader.create("Ride")
         val code = leader.group.value!!.code
-        joinAs(db, "r2", code); joinAs(db, "r3", code)
+        val r2 = joinAs(db, "r2", code)
+        val r3 = joinAs(db, "r3", code)
+        // r4 has Pro, but r3 (one of the first three) doesn't.
+        assertEquals(Plans.OTHERS_NEED_PRO, joinAs(db, "r4", code).error.value)
+        assertNull(db.get("groups/$code/pro"))
+
+        r3.leave()
+        assertNull(db.get("groups/$code/slots/3"))
+        givePro(db, "r3")
+        joinAs(db, "r3", code)
         val r4 = joinAs(db, "r4", code)
         assertEquals("\"r4\"", db.get("groups/$code/slots/4").toString())
+        assertEquals("true", db.get("groups/$code/pro").toString())
 
-        // (The fake backend has one signed-in user at a time, so the leader acts first.)
-        db.switchUser("lead")
-        leader.removeRider("r3")
-        assertNull(db.get("groups/$code/slots/3"))
-        assertNull(db.get("groups/$code/members/r3"))
-        db.switchUser("r4")
+        // Now it's a Pro group: a rider without Pro can't take even a freed seat.
+        r2.leave()
+        assertNull(db.get("groups/$code/slots/2"))
+        assertEquals(Plans.NEED_PRO_GROUP_IS_BIG, joinAs(db, "r5", code).error.value)
+        joinAs(db, "r6", code)
+        assertEquals("\"r6\"", db.get("groups/$code/slots/2").toString())
+
         r4.leave()
         assertNull(db.get("groups/$code/slots/4"))
         assertNull(db.get("groups/$code/members/r4"))
+    }
+
+    @Test fun leaderRemovesARiderAndFreesTheSeat() {
+        val db = FakeBackend("lead")
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Ride")
+        val code = leader.group.value!!.code
+        joinAs(db, "r2", code)
+        leader.removeRider("r2")
+        assertNull(db.get("groups/$code/slots/2"))
+        assertNull(db.get("groups/$code/members/r2"))
     }
 }

@@ -25,7 +25,7 @@ import kotlinx.coroutines.tasks.await
  *
  * Data layout (see database.rules.json):
  *   groups/{code}/meta              {name, leader, createdAt}
- *   groups/{code}/slots/{n}         uid   (numbered seats: 1-3 free, more need the leader's Sawaari Pro)
+ *   groups/{code}/slots/{n}         uid   (numbered seats; past 3 riders everyone needs Sawaari Pro)
  *   groups/{code}/members/{uid}     {name, role, slot, joinedAt, breakAt?, sosAt?}
  *   subs/{uid}                      {until, plan}  (written only by the server, see functions/)
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
@@ -105,7 +105,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         db.getReference("groups/$code/meta").setValue(
             mapOf("name" to groupName.trim().ifBlank { "Weekend ride" }.take(60), "leader" to uid, "createdAt" to System.currentTimeMillis())
         ).await()
-        takeSeat(code, uid, Role.LEADER, leaderUid = uid)
+        takeSeat(code, uid, Role.LEADER)
         enter(code)
     }
 
@@ -113,34 +113,39 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         val code = rawCode.trim().uppercase()
         if (code.length != CODE_LENGTH) throw IllegalArgumentException("Codes are $CODE_LENGTH letters, like K7QM2P.")
         val uid = signIn()
-        val meta = db.getReference("groups/$code/meta").get().await()
-        if (!meta.exists()) throw IllegalArgumentException("No ride group with code $code.")
-        takeSeat(code, uid, Role.RIDER, meta.child("leader").getValue(String::class.java).orEmpty())
+        if (!db.getReference("groups/$code/meta").get().await().exists()) throw IllegalArgumentException("No ride group with code $code.")
+        takeSeat(code, uid, Role.RIDER)
         enter(code)
     }
 
     /**
-     * Claim the lowest free seat and join in one write, so the server rules can check the seat limit
-     * (3 riders unless the leader has Sawaari Pro). Two riders may race for a seat; the loser tries the next.
+     * Claim a seat and join in one write, so the server rules can check the plan: groups of up to 3
+     * are free; past 3, every rider needs their own Sawaari Pro (see [Plans.seatFor]).
+     * Two riders may race for the same seat; the loser just tries again.
      */
-    private suspend fun takeSeat(code: String, uid: String, role: String, leaderUid: String) {
-        val until = if (leaderUid.isEmpty()) null
-            else db.getReference("subs/$leaderUid/until").get().await().getValue(Long::class.java)
-        val pro = Plans.subscriptionActive(until, System.currentTimeMillis())
+    private suspend fun takeSeat(code: String, uid: String, role: String) {
+        val known = mutableMapOf<String, Boolean>()
+        suspend fun isPro(rider: String) = known.getOrPut(rider) {
+            Plans.subscriptionActive(db.getReference("subs/$rider/until").get().await().getValue(Long::class.java), System.currentTimeMillis())
+        }
+        val mePro = isPro(uid)
         repeat(3) {
-            val slots = db.getReference("groups/$code/slots").get().await()
-            val mine = slots.children.firstOrNull { it.getValue(String::class.java) == uid }?.key
-            val seat = mine ?: Plans.freeSeat(slots.children.mapNotNull { it.key }, pro)?.toString()
-                ?: throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
-            val ok = runCatching {
-                db.getReference("groups/$code").updateChildren(
-                    mapOf("slots/$seat" to uid, "members/$uid" to member(role) + ("slot" to seat))
-                ).await()
-            }.isSuccess
+            val slots = db.getReference("groups/$code/slots").get().await().children
+                .mapNotNull { c -> c.getValue(String::class.java)?.let { c.key!! to it } }.toMap()
+            val mine = slots.entries.firstOrNull { it.value == uid }?.key
+            val groupPro = db.getReference("groups/$code/pro").get().await().getValue(Boolean::class.java) == true
+            val firstThree = (1..Plans.FREE_GROUP_RIDERS).mapNotNull { slots[it.toString()] }.associateWith { isPro(it) }
+            val seat = if (mine != null) Plans.Seat(mine.toInt(), false)
+                else Plans.seatFor(slots, groupPro, mePro) { firstThree[it] ?: false }
+            val updates = mutableMapOf<String, Any>(
+                "slots/${seat.seat}" to uid,
+                "members/$uid" to member(role) + ("slot" to seat.seat.toString()),
+            )
+            if (seat.makePro) updates["pro"] = true
+            val ok = runCatching { db.getReference("groups/$code").updateChildren(updates).await() }.isSuccess
             if (ok) return
         }
-        // Reads worked but the server refused every seat: the group filled up (or the leader's Pro ended).
-        throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+        throw IllegalArgumentException("Couldn't join this group right now. Try again in a moment.")
     }
 
     /** Leader only: take [uid] out of the group, freeing their seat (e.g. someone who changed phones). */

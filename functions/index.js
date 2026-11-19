@@ -1,5 +1,5 @@
 // Checks a Google Play subscription and records it at subs/{uid}, so the database rules can let
-// a Sawaari Pro leader's group grow past 3 riders. Only this server code can write subs/.
+// a Sawaari Pro rider join a group as its 4th rider or later. Only this server code can write subs/.
 //
 // Setup (once): Firebase Blaze plan, then in Play Console → Users and permissions invite this
 // project's service account (PROJECT_ID@appspot.gserviceaccount.com) with "View financial data"

@@ -2,6 +2,7 @@ package app.sawaari.plans
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -9,11 +10,25 @@ import kotlin.test.assertTrue
 class PlansTest {
     private val day = 24 * 60 * 60 * 1000L
 
-    @Test fun freeGroupsHoldThreeRiders() {
-        assertEquals(1, Plans.freeSeat(emptyList(), leaderIsPro = false))
-        assertEquals(2, Plans.freeSeat(listOf("1", "3"), leaderIsPro = false))
-        assertNull(Plans.freeSeat(listOf("1", "2", "3"), leaderIsPro = false))
-        assertEquals(4, Plans.freeSeat(listOf("1", "2", "3"), leaderIsPro = true))
+    @Test fun groupsUpToThreeAreFree() {
+        val none = { _: String -> false }
+        assertEquals(Plans.Seat(1, false), Plans.seatFor(emptyMap(), groupIsPro = false, mePro = false, isPro = none))
+        assertEquals(Plans.Seat(2, false), Plans.seatFor(mapOf("1" to "a", "3" to "c"), false, false, none))
+    }
+
+    @Test fun pastThreeEveryoneNeedsPro() {
+        val three = mapOf("1" to "a", "2" to "b", "3" to "c")
+        val msg = { block: () -> Unit -> assertFailsWith<IllegalArgumentException> { block() }.message }
+        // I don't have Pro.
+        assertEquals(Plans.NEED_PRO_TO_BE_FOURTH, msg { Plans.seatFor(three, false, false) { true } })
+        // I have Pro but rider b doesn't.
+        assertEquals(Plans.OTHERS_NEED_PRO, msg { Plans.seatFor(three, false, true) { it != "b" } })
+        // Everyone has Pro: I take seat 4 and the group becomes a Pro group.
+        assertEquals(Plans.Seat(4, true), Plans.seatFor(three, false, true) { true })
+        // In a Pro group even a free seat needs Pro.
+        val pro = mapOf("1" to "a", "3" to "c", "4" to "d")
+        assertEquals(Plans.NEED_PRO_GROUP_IS_BIG, msg { Plans.seatFor(pro, true, false) { true } })
+        assertEquals(Plans.Seat(2, false), Plans.seatFor(pro, true, true) { true })
     }
 
     @Test fun garageTrialLastsTwoWeeks() {
