@@ -136,27 +136,30 @@ object CrashWatch : SensorEventListener {
         val settings = SosSettings(app)
         val contacts = settings.contacts.value
         val text = "Possible crash detected. " + SosSender.message(app.groups.myName.value, lastLocation, settings.medical.value)
-        val sent = SosSender.send(app, contacts, text)
+        // Same as iPhone: the group alert goes out on its own; the SOS text opens in the messaging app
+        // and the rider (or someone helping) taps Send. With Sawaari open the messaging app opens straight
+        // away; in the background Android blocks that, so the notification opens it instead.
         val group = app.groups.sendSos(lastLocation)
+        val opened = SosSender.compose(app, contacts, text)
         val msg = buildString {
+            if (group) append("Your ride group has been alerted. ")
             append(
                 when {
-                    contacts.isEmpty() -> "Crash SOS: no emergency contacts saved."
-                    sent > 0 -> "Crash SOS sent to $sent contact${if (sent > 1) "s" else ""}."
-                    sent < 0 -> "Crash SOS text NOT sent: Sawaari isn't allowed to send SMS."
-                    else -> "Crash SOS text could not be sent. Check your SIM's signal and balance."
+                    contacts.isEmpty() -> "No emergency contacts saved."
+                    opened -> "The SOS text for your contacts is ready in your messaging app: tap Send."
+                    else -> "No messaging app could open, so your contacts were not texted."
                 }
             )
-            if (group) append(" Your ride group has been alerted.")
         }
         result.value = msg
-        notify(app, "Crash SOS", msg, withOk = false)
+        val sms = if (contacts.isNotEmpty()) SosSender.smsIntent(contacts.map { it.phone }, text) else null
+        notify(app, "Crash SOS", if (sms != null) "$msg Tap here to text your emergency contacts." else msg, withOk = false, tapOpens = sms)
     }
 
     private fun notifyCountdown(context: Context, left: Int) =
         notify(context, "Crash detected", "Sending SOS in $left seconds. Tap I'm OK if you're fine.", withOk = true)
 
-    private fun notify(context: Context, title: String, text: String, withOk: Boolean) {
+    private fun notify(context: Context, title: String, text: String, withOk: Boolean, tapOpens: Intent? = null) {
         if (Build.VERSION.SDK_INT >= 33 &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
         ) return
@@ -169,7 +172,9 @@ object CrashWatch : SensorEventListener {
             )
         }
         val open = PendingIntent.getActivity(
-            context, 0, Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP), PendingIntent.FLAG_IMMUTABLE,
+            context, if (tapOpens != null) 2 else 0,
+            tapOpens ?: Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val b = NotificationCompat.Builder(context, CHANNEL)
             .setSmallIcon(R.drawable.ic_stat_ride)
