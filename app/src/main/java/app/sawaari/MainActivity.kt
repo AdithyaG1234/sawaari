@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
 import app.sawaari.sos.SosScreen
 import app.sawaari.sos.SosSender
-import app.sawaari.sos.SosPermissions
 import app.sawaari.sos.SosSettings
 import app.sawaari.ride.RideRecorder
 import app.sawaari.ride.RideHistoryScreen
@@ -151,12 +150,6 @@ class MainActivity : ComponentActivity() {
 
                 // While in a ride group, keep sharing location with the screen off (ongoing notification).
                 val notifPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-                val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
-                var sosNeedsSettings by remember { mutableStateOf(false) }
-                // With emergency contacts saved, get SMS permission up front so SOS never waits on a tap.
-                LaunchedEffect(sosContacts.isNotEmpty()) {
-                    if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) smsPermission.launch(Manifest.permission.SEND_SMS)
-                }
                 LaunchedEffect(group != null, myPosition != null) {
                     if (group != null) {
                         if (Build.VERSION.SDK_INT >= 33) notifPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
@@ -169,10 +162,6 @@ class MainActivity : ComponentActivity() {
                         sosResult = "Add an emergency contact or join a ride group first, so SOS has someone to alert."
                         tab = 3
                     } else {
-                        // Ask for SMS now, during the countdown, so the text can go out without a tap.
-                        if (sosContacts.isNotEmpty() && !SosSender.canSendDirectly(applicationContext)) {
-                            smsPermission.launch(Manifest.permission.SEND_SMS)
-                        }
                         sosCountdown = 5
                     }
                 }
@@ -300,21 +289,20 @@ class MainActivity : ComponentActivity() {
                         if (left > 0) { delay(1000); sosCountdown = left - 1 }
                         else {
                             sosCountdown = null
-                            val text = SosSender.message(myName, lastLocation, sosSettings.medical.value)
-                            val sent = SosSender.send(applicationContext, sosContacts, text)
+                            // Same as iPhone: the group alert goes out on its own, then the messaging app
+                            // opens with the SOS text for the emergency contacts and the rider taps Send.
                             val groupAlerted = groups.sendSos(lastLocation)
-                            sosNeedsSettings = sent < 0
+                            val text = SosSender.message(myName, lastLocation, sosSettings.medical.value)
+                            val opened = SosSender.compose(applicationContext, sosContacts, text)
                             sosResult = buildString {
+                                if (groupAlerted) append("Your ride group has been alerted. ")
                                 append(
                                     when {
                                         sosContacts.isEmpty() -> "No emergency contacts saved."
-                                        sent > 0 -> "SOS text sent to $sent contact${if (sent > 1) "s" else ""}."
-                                        sent < 0 -> "SOS text NOT sent: Sawaari isn't allowed to send SMS. Tap Open settings, then " +
-                                            "⋮ → Allow restricted settings → Permissions → SMS → Allow."
-                                        else -> "SOS text could not be sent. Check that your SIM has signal and SMS balance."
+                                        opened -> "Your messaging app has the SOS text ready for your contacts: tap Send."
+                                        else -> "No messaging app could open, so your contacts were not texted. Call them if you can."
                                     }
                                 )
-                                if (groupAlerted) append(" Your ride group has been alerted.")
                             }
                         }
                     }
@@ -324,7 +312,7 @@ class MainActivity : ComponentActivity() {
                         titleContentColor = Color.White,
                         textContentColor = Color.White,
                         title = { Text("Sending SOS in $left", fontWeight = FontWeight.Bold) },
-                        text = { Text("Your location goes to your emergency contacts by SMS and to your ride group.") },
+                        text = { Text("Your ride group gets your location straight away. Then your messaging app opens with the SOS text for your emergency contacts: tap Send.") },
                         confirmButton = {
                             TextButton(onClick = { sosCountdown = 0 }) { Text("SEND NOW", color = Color.White, fontWeight = FontWeight.Bold) }
                         },
@@ -338,8 +326,8 @@ class MainActivity : ComponentActivity() {
                     title = { Text("Set up SOS before you ride") },
                     text = {
                         Text(
-                            "Add one or two people to text in an emergency. SOS sends them your location by SMS, " +
-                                "so it works even with no mobile data. You can also turn on crash detection there."
+                            "Add one or two people to text in an emergency. SOS opens your messaging app with your location " +
+                                "ready to send by SMS, so it works even with no mobile data. You can also turn on crash detection there."
                         )
                     },
                     confirmButton = {
@@ -358,7 +346,7 @@ class MainActivity : ComponentActivity() {
                         titleContentColor = Color.White,
                         textContentColor = Color.White,
                         title = { Text("Crash detected. SOS in $left", fontWeight = FontWeight.Bold) },
-                        text = { Text("Your location will go to your emergency contacts and your ride group. Tap I'M OK if you're fine.") },
+                        text = { Text("Your ride group will get your location, and your messaging app will open with the SOS text for your contacts. Tap I'M OK if you're fine.") },
                         confirmButton = {
                             TextButton(onClick = { CrashWatch.cancel(applicationContext) }) {
                                 Text("I'M OK", color = Color.White, fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleLarge)
@@ -383,9 +371,6 @@ class MainActivity : ComponentActivity() {
                         title = { Text("SOS") },
                         text = { Text(msg) },
                         confirmButton = { TextButton(onClick = { sosResult = null }) { Text("OK") } },
-                        dismissButton = if (sosNeedsSettings) {
-                            { TextButton(onClick = { sosResult = null; SosPermissions.openAppSettings(applicationContext) }) { Text("Open settings") } }
-                        } else null,
                     )
                 }
             }

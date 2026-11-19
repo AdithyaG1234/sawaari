@@ -1,18 +1,15 @@
 package app.sawaari.sos
 
-import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
+import android.content.Intent
 import android.location.Location
+import android.net.Uri
 import android.os.Build
-import android.telephony.SmsManager
-import android.telephony.SubscriptionManager
-import androidx.core.content.ContextCompat
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Builds the SOS text and sends it by SMS from the rider's own SIM (works with no mobile data). */
+/** Builds the SOS text and opens it in the rider's messaging app, sent from their own SIM (works with no mobile data). */
 object SosSender {
 
     fun message(riderName: String, location: Location?, medical: MedicalInfo, now: Long = System.currentTimeMillis()): String {
@@ -35,44 +32,24 @@ object SosSender {
         return sb.toString()
     }
 
-    fun canSendDirectly(context: Context) =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.SEND_SMS) == PackageManager.PERMISSION_GRANTED &&
-            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+    /** True when the phone has an app that can write a text message. */
+    fun canCompose(context: Context) = smsIntent(emptyList(), "").resolveActivity(context.packageManager) != null
 
     /**
-     * Sends [text] to every contact in the background, with no tap needed.
-     * Returns how many contacts it went to, or -1 when Android hasn't given Sawaari SMS permission.
-     * It never opens the SMS app: in an emergency the rider may not be able to tap Send.
+     * Opens the rider's messaging app with [text] filled in for every contact, the same as on iPhone.
+     * Sawaari never sends SMS by itself: the rider taps Send. Returns false when no messaging app could open.
      */
-    fun send(context: Context, contacts: List<EmergencyContact>, text: String): Int {
-        if (contacts.isEmpty()) return 0
-        if (!canSendDirectly(context)) return -1
-        val managers = smsManagers(context)
-        var sent = 0
-        contacts.forEach { c ->
-            // Dual-SIM phones set to "ask every time" have no default SIM, so try each SIM in turn.
-            val ok = managers.any { sms ->
-                runCatching { sms.sendMultipartTextMessage(c.phone, null, sms.divideMessage(text), null, null) }.isSuccess
-            }
-            if (ok) sent++
-        }
-        return sent
+    fun compose(context: Context, contacts: List<EmergencyContact>, text: String): Boolean {
+        if (contacts.isEmpty()) return false
+        return runCatching { context.startActivity(smsIntent(contacts.map { it.phone }, text)) }.isSuccess
     }
 
-    private fun smsManagers(context: Context): List<SmsManager> {
-        val base: SmsManager = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) context.getSystemService(SmsManager::class.java)
-        else @Suppress("DEPRECATION") SmsManager.getDefault()
-        val ids = linkedSetOf(
-            SubscriptionManager.getDefaultSmsSubscriptionId(),
-            SubscriptionManager.getDefaultVoiceSubscriptionId(),
-            SubscriptionManager.getDefaultSubscriptionId(),
-        ).filter { it != SubscriptionManager.INVALID_SUBSCRIPTION_ID }
-        val perSim = ids.mapNotNull { id ->
-            runCatching {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) base.createForSubscriptionId(id)
-                else @Suppress("DEPRECATION") SmsManager.getSmsManagerForSubscriptionId(id)
-            }.getOrNull()
-        }
-        return listOf(base) + perSim
+    /** The intent [compose] opens, also used for the "tap to text your contacts" notification after a crash. */
+    fun smsIntent(phones: List<String>, text: String): Intent {
+        // Samsung Messages splits recipients on commas; most other messaging apps on semicolons.
+        val sep = if (Build.MANUFACTURER.equals("samsung", ignoreCase = true)) "," else ";"
+        return Intent(Intent.ACTION_SENDTO, Uri.parse("smsto:" + Uri.encode(phones.joinToString(sep), ",;+")))
+            .putExtra("sms_body", text)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
 }

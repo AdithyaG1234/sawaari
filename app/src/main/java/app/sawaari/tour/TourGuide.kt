@@ -129,9 +129,9 @@ object TourGuide {
         TourStep(
             Icons.Default.HealthAndSafety, "7. Set up SOS now",
             listOf(
-                "In Profile (next to the search bar), tap Set up SOS contacts. Add emergency contacts and your blood group or medical notes, and allow SMS.",
-                "Press the red SOS button in the bottom-right corner of the map. After a 5-second countdown, your location goes by SMS to your contacts and as an alert to the group, with no extra taps.",
-                "Turn on crash detection there too. After a hard impact it beeps for 30 seconds, then sends the SOS by itself unless you tap I'm OK.",
+                "In Profile (next to the search bar), tap Set up SOS contacts. Add emergency contacts and your blood group or medical notes.",
+                "Press the red SOS button in the bottom-right corner of the map. After a 5-second countdown, your group is alerted with your location and your messaging app opens with the SOS text for your contacts. Tap Send.",
+                "Turn on crash detection there too. After a hard impact it beeps for 30 seconds, then alerts your group and gets the SOS text ready for your contacts unless you tap I'm OK.",
             ),
             TourTab.SOS, "Set up SOS",
         ),

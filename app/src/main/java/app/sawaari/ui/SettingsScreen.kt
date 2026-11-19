@@ -84,7 +84,7 @@ fun SettingsScreen(
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Emergency SOS", style = MaterialTheme.typography.titleMedium)
         Text(
-            "Emergency contacts, medical info and SMS permission for the red SOS button.",
+            "Emergency contacts, medical info and crash detection for the red SOS button.",
             style = MaterialTheme.typography.bodySmall,
         )
         OutlinedButton(onClick = onSosSetup, modifier = Modifier.fillMaxWidth()) {

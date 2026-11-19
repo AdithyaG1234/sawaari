@@ -1,6 +1,5 @@
 package app.sawaari.sos
 
-import android.Manifest
 import android.app.Activity
 import android.content.Intent
 import android.provider.ContactsContract
@@ -23,7 +22,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -38,24 +36,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.LifecycleResumeEffect
 
-/** Emergency contacts, medical info and SMS permission for the SOS button. */
+/** Emergency contacts, medical info and crash detection for the SOS button. */
 @Composable
 fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val contacts by settings.contacts.collectAsState()
     val medical by settings.medical.collectAsState()
-    var canSms by remember { mutableStateOf(SosSender.canSendDirectly(context)) }
-
-    val smsPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
-        canSms = SosSender.canSendDirectly(context)
-    }
-    LaunchedEffect(contacts.isNotEmpty()) {
-        if (contacts.isNotEmpty() && !canSms) smsPermission.launch(Manifest.permission.SEND_SMS)
-    }
-    LifecycleResumeEffect(Unit) { canSms = SosSender.canSendDirectly(context); onPauseOrDispose {} }
+    val canText = remember { SosSender.canCompose(context) }
     val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val uri = result.data?.data
         if (result.resultCode == Activity.RESULT_OK && uri != null) {
@@ -73,8 +61,9 @@ fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
         item {
             Text("SOS", style = MaterialTheme.typography.titleLarge)
             Text(
-                "Press the red SOS button on the map. After a 5-second countdown, your contacts get an SMS with your location " +
-                    "(no mobile data needed) and everyone in your ride group is alerted.",
+                "Press the red SOS button on the map. After a 5-second countdown, everyone in your ride group is alerted, " +
+                    "and your messaging app opens with an SOS text and your location for your contacts: tap Send. " +
+                    "It goes by SMS, so no mobile data is needed.",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -137,24 +126,13 @@ fun SosScreen(settings: SosSettings, modifier: Modifier = Modifier) {
             }
         }
 
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Send SMS automatically", style = MaterialTheme.typography.titleMedium)
-                    if (canSms) {
-                        Text("Allowed. SOS texts go out on their own, even if you can't touch the phone.", style = MaterialTheme.typography.bodySmall)
-                    } else {
-                        Text(
-                            "Not allowed yet, so SOS can't text your contacts. Tap Allow SMS. If Android says it's a restricted setting, " +
-                                "tap Open settings, then ⋮ → Allow restricted settings → Permissions → SMS → Allow.",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { smsPermission.launch(Manifest.permission.SEND_SMS) }) { Text("Allow SMS") }
-                            OutlinedButton(onClick = { SosPermissions.openAppSettings(context) }) { Text("Open settings") }
-                        }
-                    }
-                }
+        if (!canText) {
+            item {
+                Text(
+                    "This phone has no messaging app, so SOS can only alert your ride group.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                )
             }
         }
 
