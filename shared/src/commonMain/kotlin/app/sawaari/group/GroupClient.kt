@@ -30,7 +30,7 @@ import kotlin.coroutines.resumeWithException
  * exactly the same data as the Android app's GroupRepository, so riders on both phones share groups:
  *
  *   groups/{code}/meta              {name, leader, createdAt}
- *   groups/{code}/slots/{n}         uid    (numbered seats: 1-3 free, more need the leader's Sawaari Pro)
+ *   groups/{code}/slots/{n}         uid    (numbered seats; past 3 riders everyone needs Sawaari Pro)
  *   groups/{code}/members/{uid}     {name, role, slot, joinedAt, breakAt?, sosAt?, rerouteAt?, phone?, iceName?, icePhone?}
  *   subs/{uid}                      {until, plan}  (written only by the server after checking the store)
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
@@ -99,7 +99,7 @@ class GroupClient(
             put("leader", uid)
             put("createdAt", now())
         })
-        takeSeat(code, uid, Role.LEADER, leaderUid = uid)
+        takeSeat(code, uid, Role.LEADER)
         enter(code)
     }
 
@@ -107,35 +107,40 @@ class GroupClient(
         val code = rawCode.trim().uppercase()
         if (code.length != CODE_LENGTH) throw IllegalArgumentException("Codes are $CODE_LENGTH letters, like K7QM2P.")
         val uid = signIn()
-        val meta = read("groups/$code/meta") as? JsonObject ?: throw IllegalArgumentException("No ride group with code $code.")
-        val leader = (meta["leader"] as? JsonPrimitive)?.contentOrNull.orEmpty()
-        takeSeat(code, uid, Role.RIDER, leader)
+        if (read("groups/$code/meta") == null) throw IllegalArgumentException("No ride group with code $code.")
+        takeSeat(code, uid, Role.RIDER)
         enter(code)
     }
 
     /**
-     * Claim the lowest free seat and join in one write, so the server can check the seat limit.
-     * Two riders may race for the same seat; the loser just tries the next one.
+     * Claim a seat and join in one write, so the server rules can check the plan: groups of up to 3
+     * are free; past 3, every rider needs their own Sawaari Pro (see [Plans.seatFor]).
+     * Two riders may race for the same seat; the loser just tries again.
      */
-    private suspend fun takeSeat(code: String, uid: String, role: String, leaderUid: String) {
-        val pro = Plans.subscriptionActive(
-            ((read("subs/$leaderUid") as? JsonObject)?.get("until") as? JsonPrimitive)?.longOrNull, now(),
-        )
+    private suspend fun takeSeat(code: String, uid: String, role: String) {
+        val known = mutableMapOf<String, Boolean>()
+        suspend fun isPro(rider: String) = known.getOrPut(rider) {
+            Plans.subscriptionActive(((read("subs/$rider") as? JsonObject)?.get("until") as? JsonPrimitive)?.longOrNull, now())
+        }
+        val mePro = isPro(uid)
         repeat(3) {
             val slots = (read("groups/$code/slots") as? JsonObject).orEmpty()
-            val mine = slots.entries.firstOrNull { (it.value as? JsonPrimitive)?.contentOrNull == uid }?.key
-            val seat = mine ?: Plans.freeSeat(slots.keys, pro)?.toString()
-                ?: throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+                .mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }.toMap()
+            val mine = slots.entries.firstOrNull { it.value == uid }?.key
+            val groupPro = (read("groups/$code/pro") as? JsonPrimitive)?.booleanOrNull == true
+            val firstThree = (1..Plans.FREE_GROUP_RIDERS).mapNotNull { slots[it.toString()] }.associateWith { isPro(it) }
+            val seat = if (mine != null) Plans.Seat(mine.toInt(), false)
+                else Plans.seatFor(slots, groupPro, mePro) { firstThree[it] ?: false }
             val ok = runCatching {
                 update("groups/$code", buildJsonObject {
-                    put("slots/$seat", uid)
-                    put("members/$uid", JsonObject(member(role) + ("slot" to JsonPrimitive(seat))))
+                    put("slots/${seat.seat}", uid)
+                    put("members/$uid", JsonObject(member(role) + ("slot" to JsonPrimitive(seat.seat.toString()))))
+                    if (seat.makePro) put("pro", true)
                 })
             }.isSuccess
             if (ok) return
         }
-        // Reads worked but the server refused every seat: the group filled up (or the leader's Pro ended).
-        throw IllegalArgumentException(Plans.GROUP_FULL_MESSAGE)
+        throw IllegalArgumentException("Couldn't join this group right now. Try again in a moment.")
     }
 
     fun leave() = action {

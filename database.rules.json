@@ -11,8 +11,13 @@
           ".read": "auth != null",
           "$n": {
             ".write": "auth != null && (newData.exists() ? (!data.exists() && newData.val() === auth.uid) : (data.val() === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid))",
-            ".validate": "newData.isString() && ($n.matches(/^[1-3]$/) || ($n.matches(/^([4-9]|[1-9][0-9])$/) && root.child('subs').child(newData.parent().parent().child('meta').child('leader').val()).child('until').val() > now))"
+            ".validate": "newData.isString() && (($n.matches(/^[1-3]$/) && (newData.parent().parent().child('pro').val() !== true || root.child('subs').child(newData.val()).child('until').val() > now)) || ($n.matches(/^([4-9]|[1-9][0-9])$/) && newData.parent().parent().child('pro').val() === true && root.child('subs').child(newData.val()).child('until').val() > now))"
           }
+        },
+        "pro": {
+          ".read": "auth != null",
+          ".write": "auth != null && !data.exists() && newData.parent().child('members').child(auth.uid).exists() && root.child('subs').child(auth.uid).child('until').val() > now",
+          ".validate": "newData.val() === true && (!newData.parent().child('slots/1').exists() || root.child('subs').child(newData.parent().child('slots/1').val()).child('until').val() > now) && (!newData.parent().child('slots/2').exists() || root.child('subs').child(newData.parent().child('slots/2').val()).child('until').val() > now) && (!newData.parent().child('slots/3').exists() || root.child('subs').child(newData.parent().child('slots/3').val()).child('until').val() > now)"
         },
         "members": {
           "$uid": {

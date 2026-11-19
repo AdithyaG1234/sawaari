@@ -124,6 +124,7 @@ fun GroupScreen(
                 Card(Modifier.fillMaxWidth()) {
                     Row(Modifier.padding(start = 16.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(msg, color = MaterialTheme.colorScheme.error, modifier = Modifier.weight(1f))
+                        if (msg in app.sawaari.plans.Plans.PRO_MESSAGES) TextButton(onClick = { repo.clearError(); showPro = true }) { Text("Get Pro") }
                         TextButton(onClick = { repo.clearError() }) { Text("OK") }
                     }
                 }
@@ -298,13 +299,14 @@ fun GroupScreen(
         }
 
         item {
-            val proState by app.sawaari.plans.Pro.state.collectAsState()
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Riders (${g.riders.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                // The leader's plan decides the group size; riders who join never pay.
-                if (iAmLeader && !proState.active) TextButton(onClick = { showPro = true }) {
-                    Text("Free: up to ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}. Get more")
-                }
+                // Up to 3 riders is free; a bigger group needs Pro for every rider.
+                Text(
+                    if (g.riders.size > app.sawaari.plans.Plans.FREE_GROUP_RIDERS) "Pro group" else "Free up to ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
         }
 

@@ -70,9 +70,9 @@ Without `google-services.json` the app still builds; the Group tab just explains
 
 ## Free and Pro plans
 - **Free:** maps, offline navigation, SOS, crash detection, ride history, and ride groups of up to 3 riders. The garage is free for the first 14 days.
-- **Sawaari Pro:** ₹200 for 3 months or ₹500 a year, through Google Play. Groups led by a Pro rider take up to 99 riders (riders who join don't pay), and the garage stays open.
+- **Sawaari Pro:** ₹200 for 3 months or ₹500 a year, through Google Play. A group with more than 3 riders needs Pro for **every** rider in it, the first 3 included. Pro also keeps the garage open.
 
-The limits live in `shared/.../plans/Plans.kt`. The 3-rider limit is also enforced by `database.rules.json`: each rider holds a numbered seat at `groups/{code}/slots/{n}`, and seats 4+ need `subs/{leader}/until` in the future, which only the server function can write.
+The rules live in `shared/.../plans/Plans.kt` (`Plans.seatFor`) and are also enforced by `database.rules.json`: each rider holds a numbered seat at `groups/{code}/slots/{n}`. The 4th rider's join sets `groups/{code}/pro`, which needs the joiner and the riders in seats 1-3 to have an active `subs/{uid}`; once set, every new rider needs Pro. Only the server function can write `subs/`.
 
 ### Pro setup (once, before the Play Store launch)
 1. Play Console → Monetize → Subscriptions: create product `sawaari_pro` with two auto-renewing base plans, `quarterly` (3 months, ₹200) and `yearly` (1 year, ₹500). Activate both.

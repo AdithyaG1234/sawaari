@@ -116,8 +116,8 @@ fun SettingsScreen(
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Sawaari Pro", style = MaterialTheme.typography.titleMedium)
         Text(
-            if (proActive) "Thank you! Your groups take up to ${app.sawaari.plans.Plans.PRO_GROUP_RIDERS} riders, and the garage is open."
-            else "Groups bigger than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS} riders and the garage. ${app.sawaari.plans.Plans.PRICE_QUARTERLY} for 3 months or ${app.sawaari.plans.Plans.PRICE_YEARLY} a year.",
+            if (proActive) "Thank you! You can ride in groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}, and the garage is open."
+            else "Groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS} riders (everyone in the group needs Pro) and the garage. ${app.sawaari.plans.Plans.PRICE_QUARTERLY} for 3 months or ${app.sawaari.plans.Plans.PRICE_YEARLY} a year.",
             style = MaterialTheme.typography.bodySmall,
         )
         OutlinedButton(onClick = onPro, modifier = Modifier.fillMaxWidth()) {
