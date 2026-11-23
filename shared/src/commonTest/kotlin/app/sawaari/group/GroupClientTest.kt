@@ -172,7 +172,11 @@ class GroupClientTest {
         val leader = GroupClient(db, MemoryStore(), scope) { clock }
         leader.create("Goa")
         val code = leader.group.value!!.code
-        leader.sharePlan(RidePlan(stops = listOf(GeoPoint(15.0, 74.0), GeoPoint(15.2, 74.1)), end = GeoPoint(15.5, 73.8)))
+        leader.sharePlan(
+            RidePlan(stops = listOf(GeoPoint(15.0, 74.0), GeoPoint(15.2, 74.1)), end = GeoPoint(15.5, 73.8)),
+            names = mapOf(GeoPoint(15.5, 73.8) to "Panaji"),
+        )
+        assertEquals(mapOf("end" to "Panaji"), leader.group.value?.planNames)
         leader.saveSchedule(RideSchedule(start = StopTime(clock + 60_000), stops = mapOf(1 to StopTime(clock + 120_000, "Lunch")), end = StopTime(clock + 300_000)))
         val s = leader.group.value?.schedule
         assertEquals(clock + 60_000, s?.start?.at)

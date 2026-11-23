@@ -30,6 +30,8 @@ class SawaariApp : Application() {
         app.sawaari.garage.Garage.init(this)
         app.sawaari.ride.RideRecorder.init(this)
         app.sawaari.ride.RideRecorder.onRideSaved = { app.sawaari.garage.GarageReminders.check(this) }
+        // Shared ride plans carry place names: the nearest town from the offline places file when search gave none.
+        groups.placeName = { p -> app.sawaari.places.PlaceNames.describe(p, places.placesNear(p)) }
         // Ride schedule: alarms for each stop time, and "ride started/ended" notices for this rider.
         appScope.launch { groups.group.collect { app.sawaari.ride.ScheduleAlarms.onGroup(this@SawaariApp, it, groups.myUid) } }
     }

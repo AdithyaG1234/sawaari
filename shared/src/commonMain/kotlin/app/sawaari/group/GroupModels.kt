@@ -98,6 +98,8 @@ data class RideGroup(
     val plan: RidePlan? = null,
     val planBy: String = "",
     val planTs: Long = 0L,
+    /** Map names of the plan's points, keyed like the schedule: "start", "stop0".., "end". */
+    val planNames: Map<String, String> = emptyMap(),
     val meet: MeetingPoint? = null,
     /** Scheduled times for the start, pit stops and destination, if the leader set any. */
     val schedule: RideSchedule? = null,

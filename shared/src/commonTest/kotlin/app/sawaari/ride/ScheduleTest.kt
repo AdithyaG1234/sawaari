@@ -47,6 +47,14 @@ class ScheduleTest {
         assertEquals(RidePhase.IN_PROGRESS, Schedule.phase(RideStatus(RideStatus.STARTED, 1L, "", "")))
     }
 
+    @Test fun mapNamesAreTheDefaultAndTheLeaderCanRename() {
+        val names = Schedule.planNameKeys(plan) { p -> if (p == plan.stops[0]) "Margao" else if (p == plan.end) "Panaji" else null }
+        assertEquals(mapOf("stop0" to "Margao", "end" to "Panaji"), names)
+        val s = RideSchedule(stops = mapOf(0 to StopTime(10L), 1 to StopTime(20L, "Lunch")), end = StopTime(30L))
+        // Pit stop 1 and the destination show their map names; pit stop 2 keeps the leader's own name.
+        assertEquals(listOf("Pit stop 1 (Margao)", "Pit stop 2 (Lunch)", "Destination (Panaji)"), Schedule.entries(plan, s, names).map { it.title })
+    }
+
     @Test fun reminderWording() {
         val e = Schedule.entries(plan, schedule)
         val fmt = { t: Long -> "${t / min}m" }

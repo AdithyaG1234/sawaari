@@ -29,7 +29,7 @@ import kotlinx.coroutines.tasks.await
  *   groups/{code}/members/{uid}     {name, role, slot, joinedAt, breakAt?, sosAt?}
  *   subs/{uid}                      {until, plan}  (written only by the server, see functions/)
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
- *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
+ *   groups/{code}/plan              {start?, stops?, end, names?, by, ts}   (leader only; names keyed start/stop0../end)
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
  *   groups/{code}/schedule          {start?, stops?, end?, by, ts}  each {at, name?} (leader only)
  *   groups/{code}/ride              {state: started|ended, at, by, uid} (any rider)
@@ -258,17 +258,30 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         if (on) ref.setValue(System.currentTimeMillis()) else ref.removeValue()
     }
 
-    /** Leader only: share [plan] so every rider can load the same route. */
-    fun sharePlan(plan: RidePlan) = action {
+    /**
+     * Finds a map name for a point with no name from search or a link (the nearest town from the
+     * offline places file). Set by the app; null leaves such points unnamed.
+     */
+    var placeName: (suspend (GeoPoint) -> String?)? = null
+
+    /**
+     * Leader only: share [plan] so every rider can load the same route. [names] are the map's names
+     * for its points (from search or a link); other points get the nearest town's name if known.
+     */
+    fun sharePlan(plan: RidePlan, names: Map<GeoPoint, String> = emptyMap()) = action {
         val g = _group.value ?: return@action
         val end = plan.end ?: return@action
         fun pt(p: GeoPoint) = mapOf("lat" to p.lat, "lon" to p.lon)
+        val found = (listOfNotNull(plan.start, end) + plan.stops).filter { names[it].isNullOrBlank() }
+            .associateWith { p -> runCatching { placeName?.invoke(p) }.getOrNull() }
+        val keyed = app.sawaari.ride.Schedule.planNameKeys(plan) { p -> names[p]?.takeIf { it.isNotBlank() } ?: found[p] }
         val data = mutableMapOf<String, Any>(
             "end" to pt(end),
             "stops" to plan.stops.map { pt(it) },
             "by" to _myName.value.ifBlank { "Leader" },
             "ts" to System.currentTimeMillis(),
         )
+        if (keyed.isNotEmpty()) data["names"] = keyed.mapValues { it.value.take(60) }
         plan.start?.let { data["start"] = pt(it) }
         db.getReference("groups/${g.code}/plan").setValue(data).await()
     }
@@ -508,6 +521,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
             plan = parsePlan(s.child("plan")),
             planBy = s.child("plan/by").getValue(String::class.java).orEmpty(),
             planTs = s.child("plan/ts").getValue(Long::class.java) ?: 0L,
+            planNames = s.child("plan/names").children.mapNotNull { c -> c.getValue(String::class.java)?.let { c.key!! to it } }.toMap(),
             meet = parseMeet(s.child("meet")),
             schedule = parseSchedule(s.child("schedule")),
             ride = parseRide(s.child("ride")),

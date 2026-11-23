@@ -4,9 +4,13 @@ import app.sawaari.group.RideGroup
 import app.sawaari.group.RideSchedule
 import app.sawaari.group.RideStatus
 import app.sawaari.group.StopTime
+import app.sawaari.geo.GeoPoint
 import app.sawaari.nav.RidePlan
 
-/** One row of the ride's timetable. [key] is "start", "stop0".."stop7" or "end". */
+/**
+ * One row of the ride's timetable. [key] is "start", "stop0".."stop7" or "end". [name] is the name the
+ * leader gave the stop, or else the place's name on the map.
+ */
 data class ScheduleEntry(val key: String, val label: String, val name: String, val at: Long) {
     /** "Pit stop 1 (Breakfast)" or just "Pit stop 1". */
     val title: String get() = if (name.isBlank()) label else "$label ($name)"
@@ -51,11 +55,22 @@ object Schedule {
         else -> key
     }
 
-    /** The stops that have a time, in route order. */
-    fun entries(plan: RidePlan?, schedule: RideSchedule?): List<ScheduleEntry> =
-        rows(plan, schedule).mapNotNull { (key, t) -> t?.let { ScheduleEntry(key, label(key), it.name, it.at) } }
+    /** The name to show for a stop: the leader's own name for it, else its name on the map, else blank. */
+    fun nameFor(key: String, t: StopTime?, mapNames: Map<String, String>): String =
+        t?.name?.takeIf { it.isNotBlank() } ?: mapNames[key].orEmpty()
 
-    fun entries(g: RideGroup): List<ScheduleEntry> = entries(g.plan, g.schedule)
+    /** The stops that have a time, in route order. */
+    fun entries(plan: RidePlan?, schedule: RideSchedule?, mapNames: Map<String, String> = emptyMap()): List<ScheduleEntry> =
+        rows(plan, schedule).mapNotNull { (key, t) -> t?.let { ScheduleEntry(key, label(key), nameFor(key, it, mapNames), it.at) } }
+
+    fun entries(g: RideGroup): List<ScheduleEntry> = entries(g.plan, g.schedule, g.planNames)
+
+    /** Map names for a plan's points, keyed like the schedule ("start", "stop0".., "end"). */
+    fun planNameKeys(plan: RidePlan, names: (GeoPoint) -> String?): Map<String, String> = buildMap {
+        plan.start?.let(names)?.takeIf { it.isNotBlank() }?.let { put(START, it) }
+        plan.stops.forEachIndexed { i, p -> names(p)?.takeIf { it.isNotBlank() }?.let { put(stopKey(i), it) } }
+        plan.end?.let(names)?.takeIf { it.isNotBlank() }?.let { put(END, it) }
+    }
 
     /** The next stop still to come after [now], or null. */
     fun next(entries: List<ScheduleEntry>, now: Long): ScheduleEntry? = entries.filter { it.at > now }.minByOrNull { it.at }
@@ -83,7 +98,7 @@ object Schedule {
         }
         val text = buildString {
             append("Scheduled for ${time(e.at)}")
-            if (e.key != START && e.name.isNotBlank()) append(" at ${e.name}")
+            if (e.name.isNotBlank()) append(" at ${e.name}")
             append(".")
             if (e.key == START && phase == RidePhase.PLANNED) append(" When everyone's ready, tap Start ride in the Ride window.")
             if (next != null && next.key != e.key) append(" Next: ${next.title} at ${time(next.at)}.")

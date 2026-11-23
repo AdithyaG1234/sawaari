@@ -143,7 +143,8 @@ fun MapScreen(
     groupPlan: RidePlan? = null,
     groupPlanBy: String = "",
     iAmLeader: Boolean = false,
-    onSharePlan: ((RidePlan) -> Unit)? = null,
+    /** Share the plan with the group, with the names the map knows for its points (from search or a link). */
+    onSharePlan: ((RidePlan, Map<GeoPoint, String>) -> Unit)? = null,
     meet: MeetingPoint? = null,
     onSetMeetingPoint: ((GeoPoint, Long, String) -> Unit)? = null,
     onReroute: () -> Unit = {},
@@ -230,9 +231,12 @@ fun MapScreen(
             map?.animateCamera(CameraUpdateFactory.newLatLngBounds(b, 120), 800)
         } else pts.firstOrNull()?.let { map?.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(it.lat, it.lon), 12.0), 800) }
     }
+    val sharePlan: ((RidePlan) -> Unit)? = onSharePlan?.let { share ->
+        { p: RidePlan -> share(p, (listOfNotNull(p.start, p.end) + p.stops).mapNotNull { pt -> nav.labelFor(pt)?.let { pt to it } }.toMap()) }
+    }
     // The leader's first planned route is shared with the group automatically, so every rider gets it.
     LaunchedEffect(iAmLeader, groupPlan == null, nav.route) {
-        if (iAmLeader && groupPlan == null && nav.route != null && nav.plan.end != null) onSharePlan?.invoke(nav.plan)
+        if (iAmLeader && groupPlan == null && nav.route != null && nav.plan.end != null) sharePlan?.invoke(nav.plan)
     }
     val snackbar = remember { SnackbarHostState() }
 
@@ -501,7 +505,7 @@ fun MapScreen(
                     Icon(Icons.Default.Close, null); Spacer(Modifier.width(8.dp)); Text("End navigation")
                 }
                 !nav.plan.isEmpty -> RouteCard(
-                    nav, places, onShare = if (iAmLeader && onSharePlan != null) onSharePlan else null, sharedPlan = groupPlan,
+                    nav, places, onShare = if (iAmLeader) sharePlan else null, sharedPlan = groupPlan,
                     onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
                     onFindNearby = { searchPrefill = it },
                     onCreateGroup = if (!inGroup && onCreateGroup != null) ({ onCreateGroup(nav.plan.end?.let { nav.labelFor(it) }.orEmpty()) }) else null,
