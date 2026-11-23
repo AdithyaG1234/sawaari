@@ -197,9 +197,9 @@ fun GroupScreen(
         val iAmLeader = g.leaderUid == repo.myUid
         val meRider = g.riders.firstOrNull { it.uid == repo.myUid }
 
-        item { RouteStep(g.plan, g.planBy, iAmLeader, onPlanOnMap, onImportLink, onShowRoute) }
+        item { RouteStep(g.plan, g.planBy, iAmLeader, onPlanOnMap, onImportLink, onShowRoute, onClear = repo::clearSharedPlan) }
 
-        item {
+        if (g.plan != null || g.schedule != null || g.ride != null) item {
             ScheduleCard(
                 g, iAmLeader, now, busy,
                 onSave = repo::saveSchedule, onStart = repo::startRide, onEnd = repo::endRide,
@@ -391,8 +391,17 @@ private fun riderStatus(r: Rider, me: GeoPoint?, now: Long, isMe: Boolean): Stri
 private fun RouteStep(
     plan: RidePlan?, planBy: String, iAmLeader: Boolean,
     onPlanOnMap: () -> Unit, onImportLink: (String) -> Unit, onShowRoute: () -> Unit,
+    onClear: () -> Unit = {},
 ) {
     var pasting by remember { mutableStateOf(false) }
+    var confirmClear by remember { mutableStateOf(false) }
+    if (confirmClear) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { confirmClear = false },
+        title = { Text("Clear this ride?") },
+        text = { Text("Removes the route and the ride schedule for everyone. Stop reminders are cancelled on every phone.") },
+        confirmButton = { Button(onClick = { confirmClear = false; onClear() }) { Text("Clear ride") } },
+        dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+    )
     val highlight = plan == null && iAmLeader
     Card(
         Modifier.fillMaxWidth(),
@@ -426,6 +435,7 @@ private fun RouteStep(
                     else OutlinedButton(onClick = { pasting = true }) { Text("Paste a new link") }
                     OutlinedButton(onClick = onPlanOnMap) { Text(if (plan == null) "Plan on map" else "Change on map") }
                 }
+                if (plan != null) TextButton(onClick = { confirmClear = true }) { Text("Clear ride (route and schedule)") }
             }
         }
     }

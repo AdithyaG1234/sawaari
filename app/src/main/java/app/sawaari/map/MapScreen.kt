@@ -145,6 +145,8 @@ fun MapScreen(
     iAmLeader: Boolean = false,
     /** Share the plan with the group, with the names the map knows for its points (from search or a link). */
     onSharePlan: ((RidePlan, Map<GeoPoint, String>) -> Unit)? = null,
+    /** Leader only: remove the group's route, schedule and ride state. */
+    onClearGroupRide: (() -> Unit)? = null,
     meet: MeetingPoint? = null,
     onSetMeetingPoint: ((GeoPoint, Long, String) -> Unit)? = null,
     onReroute: () -> Unit = {},
@@ -508,6 +510,7 @@ fun MapScreen(
                     nav, places, onShare = if (iAmLeader) sharePlan else null, sharedPlan = groupPlan,
                     onShareRoute = { scope.launch { RouteShare.share(context, map, nav.plan, nav.route, nav::labelFor) } },
                     onFindNearby = { searchPrefill = it },
+                    onClearGroupRide = if (iAmLeader) onClearGroupRide else null,
                     onCreateGroup = if (!inGroup && onCreateGroup != null) ({ onCreateGroup(nav.plan.end?.let { nav.labelFor(it) }.orEmpty()) }) else null,
                 )
                 else -> SaveAreaCard(onSave = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds })
