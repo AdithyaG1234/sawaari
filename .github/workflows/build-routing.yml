@@ -66,6 +66,14 @@ jobs:
           - id: meghalaya
             zone: north-eastern-zone
             bbox: "90.8,25.0,92.5,26.3"
+          # Whole-trip packs. Goa is in Geofabrik's western zone and Karnataka in the southern one,
+          # so these merge both zones.
+          - id: bengaluru-goa
+            zone: southern-zone western-zone
+            bbox: "73.6,12.7,77.8,15.95"
+          - id: karnataka-goa
+            zone: southern-zone western-zone
+            bbox: "73.6,11.5,78.6,18.5"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -74,10 +82,19 @@ jobs:
           java-version: "17"
       - name: Install osmium
         run: sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
-      - name: Download OpenStreetMap extract
-        run: curl -fsSL -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${{ matrix.zone }}-latest.osm.pbf"
-      - name: Crop to ride area
-        run: osmium extract -b "${{ matrix.bbox }}" --strategy smart zone.osm.pbf -o area.osm.pbf && rm zone.osm.pbf
+      # A pack can span several Geofabrik zones (space-separated): each is cropped, then they're merged.
+      - name: Download OpenStreetMap extract and crop to ride area
+        run: |
+          i=0
+          for zone in ${{ matrix.zone }}; do
+            curl -fsSL -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${zone}-latest.osm.pbf"
+            osmium extract -b "${{ matrix.bbox }}" --strategy smart zone.osm.pbf -o "part$i.osm.pbf"
+            rm zone.osm.pbf
+            i=$((i+1))
+          done
+          if [ "$i" -eq 1 ]; then mv part0.osm.pbf area.osm.pbf
+          else osmium merge part*.osm.pbf -o area.osm.pbf && rm part*.osm.pbf; fi
+          ls -lh area.osm.pbf
       - name: Build GraphHopper graph
         run: |
           curl -fsSL -o gh.jar https://github.com/graphhopper/graphhopper/releases/download/4.0/graphhopper-web-4.0.jar

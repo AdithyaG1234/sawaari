@@ -20,6 +20,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CloudDownload
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -31,13 +33,16 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -55,6 +60,10 @@ import app.sawaari.nav.NavigationController
 import app.sawaari.nav.RidePlan
 import app.sawaari.nav.formatDistance
 import app.sawaari.nav.formatDuration
+import app.sawaari.offline.GeoBounds
+import app.sawaari.offline.RouteCorridor
+import app.sawaari.routing.PackState
+import app.sawaari.routing.RoutingPack
 import app.sawaari.places.PlaceNames
 import app.sawaari.places.PlacesRepository
 
@@ -82,6 +91,11 @@ internal fun RouteCard(
     onCreateGroup: (() -> Unit)? = null,
     /** Leader with a route shared to the group: also clear the group's route and schedule. */
     onClearGroupRide: (() -> Unit)? = null,
+    /** Download state of each offline routing pack, to offer the one this trip needs. */
+    routingStates: Map<String, PackState> = emptyMap(),
+    onDownloadPack: ((RoutingPack) -> Unit)? = null,
+    /** Save the map along the planned route for offline use: a name and the boxes along the route. */
+    onSaveRideMap: ((String, List<GeoBounds>) -> Unit)? = null,
 ) {
     val plan = nav.plan
     var askClear by rememberSaveable { mutableStateOf(false) }
@@ -181,6 +195,29 @@ internal fun RouteCard(
                 )
             }
 
+            // Whole-trip offline, step 1: the routing pack that covers every stop of this trip.
+            val needed = nav.neededPack
+            if (needed != null && onDownloadPack != null) {
+                TripPackDownload(needed, routingStates[needed.id] ?: PackState.NotDownloaded, onDownloadPack, onReady = { nav.planRoute() })
+            }
+            // Step 2: the map along the route, so the whole trip shows with no signal.
+            if (expanded && r != null && onSaveRideMap != null) {
+                val boxes = remember(r) { RouteCorridor.boxes(r.points) }
+                val mb = remember(boxes) { (RouteCorridor.estimateBytes(boxes) / 1_000_000).coerceAtLeast(1) }
+                var saved by remember(r) { mutableStateOf(false) }
+                val name = "Ride map: " + (plan.end?.let { nav.labelFor(it) } ?: plan.stops.lastOrNull()?.let { nav.labelFor(it) } ?: "planned route")
+                androidx.compose.material3.FilledTonalButton(
+                    onClick = { onSaveRideMap(name, boxes); saved = true },
+                    enabled = !saved,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Icon(Icons.Default.CloudDownload, null); Spacer(Modifier.width(8.dp))
+                    Text(
+                        if (saved) "Saving the map along this route. See Offline maps."
+                        else "Save the map for this whole route offline (about $mb MB)",
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (r == null) {
                     Button(onClick = { nav.planRoute() }, enabled = !nav.busy && plan.end != null) {
@@ -211,6 +248,38 @@ internal fun RouteCard(
                 androidx.compose.material3.FilledTonalButton(onClick = onCreateGroup, modifier = Modifier.fillMaxWidth()) {
                     Icon(androidx.compose.material.icons.Icons.Default.Groups, null); Spacer(Modifier.width(8.dp))
                     Text("Riding with friends? Create a group for this route")
+                }
+            }
+        }
+    }
+}
+
+/** Offers the routing pack that covers the whole trip, with its size and download progress. */
+@Composable
+private fun TripPackDownload(pack: RoutingPack, state: PackState, onDownload: (RoutingPack) -> Unit, onReady: () -> Unit) {
+    // Once it's downloaded, plan the route straight away.
+    LaunchedEffect(pack.id, state is PackState.Ready) { if (state is PackState.Ready) onReady() }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(if (pack.wholeTrip) "Offline navigation for this whole trip" else "Offline navigation for this ride", style = MaterialTheme.typography.titleSmall)
+        Text(
+            (if (pack.wholeTrip) "Your stops are spread over several ride areas. One download covers them all: "
+            else "This ride needs the routing data for ") +
+                "${pack.name}, about ${pack.approxMb} MB. Best on Wi-Fi. After that, turn-by-turn works with no signal.",
+            style = MaterialTheme.typography.bodySmall,
+        )
+        when (state) {
+            is PackState.Downloading -> {
+                LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+                Text("Downloading ${(state.progress * 100).toInt()}%", style = MaterialTheme.typography.bodySmall)
+            }
+            is PackState.Ready -> Text("Downloaded. Planning your route…", style = MaterialTheme.typography.bodySmall)
+            else -> {
+                if (state is PackState.Failed) {
+                    Text(state.message, style = MaterialTheme.typography.bodySmall, color = Color(android.graphics.Color.parseColor(PROBLEM_COLOR)))
+                }
+                Button(onClick = { onDownload(pack) }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Default.Download, null); Spacer(Modifier.width(8.dp))
+                    Text(if (state is PackState.Failed) "Try again (${pack.approxMb} MB)" else "Download for offline (${pack.approxMb} MB)")
                 }
             }
         }

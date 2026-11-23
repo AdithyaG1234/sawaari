@@ -47,7 +47,9 @@ class PlacesRepository(private val context: Context) {
 
     /** Places for the routing area that contains [p], downloading the area's file the first time. */
     suspend fun placesNear(p: GeoPoint): List<Place> = withContext(Dispatchers.IO) {
-        val pack = routingPacks.firstOrNull { it.contains(p.lat, p.lon) } ?: return@withContext emptyList()
+        // The smallest area around p, preferring one whose places are already on the phone (a whole-trip pack).
+        val around = routingPacks.filter { it.contains(p.lat, p.lon) }.sortedBy { it.area }
+        val pack = around.firstOrNull { it.id in cache || file(it.id).isFile } ?: around.firstOrNull() ?: return@withContext emptyList()
         lock.withLock {
             cache[pack.id]?.let { return@withLock it }
             val f = file(pack.id)
@@ -58,6 +60,14 @@ class PlacesRepository(private val context: Context) {
             }.getOrDefault(emptyList())
             cache[pack.id] = list
             list
+        }
+    }
+
+    /** Fetch the places file for [pack] now, while there's signal, so places work offline on the whole trip. */
+    suspend fun prefetch(pack: app.sawaari.routing.RoutingPack) = withContext(Dispatchers.IO) {
+        lock.withLock {
+            val f = file(pack.id)
+            if (!f.isFile) runCatching { download("${RoutingConfig.RELEASE_BASE_URL}pois-${pack.id}.tsv.gz", f) }
         }
     }
 

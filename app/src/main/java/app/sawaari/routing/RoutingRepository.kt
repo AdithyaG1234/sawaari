@@ -118,16 +118,25 @@ class RoutingRepository(context: Context, private val scope: CoroutineScope) {
     /** True if some downloaded pack covers both points. */
     fun hasCoverage(from: GeoPoint, to: GeoPoint) = coveringPack(listOf(from, to)) != null
 
-    private fun coveringPack(points: List<GeoPoint>) = routingPacks.firstOrNull { pack ->
-        _states.value[pack.id] is PackState.Ready && points.all { pack.contains(it.lat, it.lon) }
-    }
+    private fun downloadedIds() = _states.value.filterValues { it is PackState.Ready }.keys
+
+    /** The smallest downloaded pack that covers every point, so a local ride loads a small pack fast. */
+    private fun coveringPack(points: List<GeoPoint>) =
+        bestPackFor(points, downloadedIds())?.takeIf { it.id in downloadedIds() }
+
+    /**
+     * The pack this trip needs but that isn't downloaded yet (the smallest one covering every point),
+     * or null when a downloaded pack already covers it or no single pack does.
+     */
+    fun packToDownload(points: List<GeoPoint>): RoutingPack? =
+        if (coveringPack(points) != null) null else bestPackFor(points)
 
     suspend fun route(from: GeoPoint, to: GeoPoint): Route = route(listOf(from, to))
 
     /** Compute a route fully offline. Throws [RoutingException] with a rider-friendly message. */
     suspend fun route(points: List<GeoPoint>): Route = withContext(Dispatchers.IO) {
         val pack = coveringPack(points) ?: run {
-            val candidate = routingPacks.firstOrNull { pack -> points.all { pack.contains(it.lat, it.lon) } }
+            val candidate = bestPackFor(points)
             throw RoutingException(
                 if (candidate != null) "Download the \"${candidate.name}\" routing pack in Offline maps first."
                 else "Offline navigation isn't available for this trip yet. The start, stops and destination must all be inside one routing area."

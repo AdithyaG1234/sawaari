@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -130,6 +131,8 @@ private const val SRC_POIS = "sawaari-pois"
 fun MapScreen(
     routing: RoutingRepository,
     onDownloadArea: (name: String, bounds: LatLngBounds) -> Unit,
+    /** Save the map along a planned route (a whole trip) for offline use. */
+    onSaveRideMap: (name: String, boxes: List<app.sawaari.offline.GeoBounds>) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     groupRiders: List<Rider> = emptyList(),
     myUid: String? = null,
@@ -167,6 +170,7 @@ fun MapScreen(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val nav = remember { NavigationController(context, routing, scope) }
+    val routingStates by routing.states.collectAsState()
     // Navigation counts as a ride for the history, titled with the destination.
     LaunchedEffect(nav.navigating) {
         app.sawaari.ride.RideRecorder.setActive("nav", nav.navigating, nav.plan.end?.let { nav.labelFor(it) })
@@ -512,6 +516,12 @@ fun MapScreen(
                     onFindNearby = { searchPrefill = it },
                     onClearGroupRide = if (iAmLeader) onClearGroupRide else null,
                     onCreateGroup = if (!inGroup && onCreateGroup != null) ({ onCreateGroup(nav.plan.end?.let { nav.labelFor(it) }.orEmpty()) }) else null,
+                    routingStates = routingStates,
+                    onDownloadPack = { pack -> routing.download(pack); scope.launch { places?.prefetch(pack) } },
+                    onSaveRideMap = { name, boxes ->
+                        onSaveRideMap(name, boxes)
+                        nav.message = "Saving the map along your route. You can see progress in Offline maps."
+                    },
                 )
                 else -> SaveAreaCard(onSave = { pendingBounds = map?.projection?.visibleRegion?.latLngBounds })
             }

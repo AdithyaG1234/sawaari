@@ -88,12 +88,13 @@ fun DownloadsScreen(
             Column(Modifier.padding(top = 16.dp)) {
                 Text("Offline navigation", style = MaterialTheme.typography.titleLarge)
                 Text(
-                    "Download routing data to get turn-by-turn directions with no signal. Get the map for the same area too.",
+                    "Download routing data to get turn-by-turn directions with no signal. Get the map for the same area too. " +
+                        "Going on a multi-day trip? A whole-trip pack covers every stop in one download, and \"Save the map for this whole route\" on your ride plan saves the map along the way.",
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
-        items(routingPacks, key = { "routing-" + it.id }) { pack ->
+        items(routingPacks.sortedByDescending { it.wholeTrip }, key = { "routing-" + it.id }) { pack ->
             val state = routingStates[pack.id] ?: PackState.NotDownloaded
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(bottom = 8.dp)) {
@@ -102,7 +103,7 @@ fun DownloadsScreen(
                         supportingContent = {
                             Text(
                                 when (state) {
-                                    PackState.NotDownloaded -> "Not downloaded"
+                                    PackState.NotDownloaded -> (if (pack.wholeTrip) "Whole trip · " else "") + "Not downloaded · about ${pack.approxMb} MB"
                                     is PackState.Downloading -> if (state.totalBytes > 0)
                                         "Downloading ${(state.progress * 100).toInt()}% of ${Formatter.formatShortFileSize(context, state.totalBytes)}"
                                     else "Downloading ${Formatter.formatShortFileSize(context, state.bytes)}"

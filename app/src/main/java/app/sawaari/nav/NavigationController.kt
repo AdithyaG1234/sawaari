@@ -10,6 +10,7 @@ import androidx.compose.runtime.setValue
 import app.sawaari.geo.GeoPoint
 import app.sawaari.routing.Route
 import app.sawaari.routing.RoutingException
+import app.sawaari.routing.RoutingPack
 import app.sawaari.routing.RoutingRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -41,6 +42,8 @@ class NavigationController(
     var message by mutableStateOf<String?>(null)
     /** Plan points that can't be routed offline, with the reason, shown on that row of the plan. */
     val problems = mutableStateMapOf<GeoPoint, String>()
+    /** The whole trip fits one routing pack the rider hasn't downloaded yet: offer it on the plan. */
+    var neededPack by mutableStateOf<RoutingPack?>(null); private set
     /** The rider asked to come back to where they started. */
     var roundTrip by mutableStateOf(false); private set
     val isRoundTrip: Boolean get() = plan.end != null && (roundTrip || plan.end == plan.start)
@@ -97,6 +100,7 @@ class NavigationController(
         plan = p
         roundTrip = false
         problems.clear()
+        neededPack = null
         route = null
         planRoute()
     }
@@ -105,6 +109,7 @@ class NavigationController(
         if (navigating) return
         plan = change(plan)
         problems.clear()
+        neededPack = null
         route = null
     }
 
@@ -113,6 +118,7 @@ class NavigationController(
         plan = RidePlan()
         roundTrip = false
         problems.clear()
+        neededPack = null
         route = null
     }
 
@@ -130,6 +136,13 @@ class NavigationController(
             else "${outside.size} places are outside the offline map area. They're marked in red in the plan."
             return
         }
+        routing.packToDownload(points)?.let { pack ->
+            problems.clear()
+            neededPack = pack
+            message = "Download offline navigation for this trip first: ${pack.name}."
+            return
+        }
+        neededPack = null
         busy = true
         scope.launch {
             try {
