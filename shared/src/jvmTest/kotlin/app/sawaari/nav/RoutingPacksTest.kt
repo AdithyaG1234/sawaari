@@ -37,4 +37,21 @@ class RoutingPacksTest {
         )
         spots.forEach { (name, ll) -> assertTrue(name, routingPacks.any { it.contains(ll.first, ll.second) }) }
     }
+
+    /** Goa is in Geofabrik's western zone and Karnataka in the southern one: whole-trip packs need both. */
+    @Test fun karnatakaAndGoaPacksMergeBothZones() {
+        val yml = listOf(File("../.github/workflows/build-routing.yml"), File(".github/workflows/build-routing.yml"))
+            .first { it.isFile }.readText()
+        listOf("bengaluru-goa", "karnataka-goa").forEach { id ->
+            val block = yml.substringAfter("- id: $id\n").substringBefore("- id:")
+            assertTrue(id, "southern-zone" in block && "western-zone" in block)
+        }
+        assertTrue("workflow must merge zones", "osmium merge" in yml)
+    }
+
+    @Test fun everyPackHasASizeAndWholeTripPacksStayPhoneSized() {
+        routingPacks.forEach { assertTrue(it.id, it.approxMb > 0) }
+        routingPacks.filter { it.wholeTrip }.forEach { assertTrue(it.id, it.approxMb <= 400) }
+        assertTrue(routingPacks.count { it.wholeTrip } >= 2)
+    }
 }

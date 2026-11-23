@@ -21,7 +21,30 @@ permissions:
   contents: write
 
 jobs:
+  # Download each Geofabrik zone once and share it with the pack jobs: Geofabrik refuses
+  # connections when every pack downloads its own copy at the same time.
+  zones:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      max-parallel: 2
+      matrix:
+        zone: [southern-zone, western-zone, northern-zone, north-eastern-zone]
+    steps:
+      - name: Download OpenStreetMap zone
+        run: |
+          curl -fsSL --retry 10 --retry-delay 60 --retry-all-errors -o "${{ matrix.zone }}.osm.pbf" \
+            "https://download.geofabrik.de/asia/india/${{ matrix.zone }}-latest.osm.pbf"
+          ls -lh *.osm.pbf
+      - uses: actions/upload-artifact@v5
+        with:
+          name: zone-${{ matrix.zone }}
+          path: ${{ matrix.zone }}.osm.pbf
+          compression-level: 0
+          retention-days: 1
+
   pack:
+    needs: zones
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -66,6 +89,16 @@ jobs:
           - id: meghalaya
             zone: north-eastern-zone
             bbox: "90.8,25.0,92.5,26.3"
+          # Whole-trip packs. Goa is in Geofabrik's western zone and Karnataka in the southern one,
+          # so these merge both zones (zone2).
+          - id: bengaluru-goa
+            zone: southern-zone
+            zone2: western-zone
+            bbox: "73.6,12.7,77.8,15.95"
+          - id: karnataka-goa
+            zone: southern-zone
+            zone2: western-zone
+            bbox: "73.6,11.5,78.6,18.5"
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-java@v5
@@ -74,10 +107,27 @@ jobs:
           java-version: "17"
       - name: Install osmium
         run: sudo apt-get update -q && sudo apt-get install -y -q osmium-tool
-      - name: Download OpenStreetMap extract
-        run: curl -fsSL -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${{ matrix.zone }}-latest.osm.pbf"
-      - name: Crop to ride area
-        run: osmium extract -b "${{ matrix.bbox }}" --strategy smart zone.osm.pbf -o area.osm.pbf && rm zone.osm.pbf
+      - uses: actions/download-artifact@v5
+        with:
+          name: zone-${{ matrix.zone }}
+          path: zones
+      # A pack can span two Geofabrik zones (zone2): each is cropped, then they're merged.
+      - if: ${{ matrix.zone2 }}
+        uses: actions/download-artifact@v5
+        with:
+          name: zone-${{ matrix.zone2 }}
+          path: zones
+      - name: Crop OpenStreetMap zones to ride area
+        run: |
+          i=0
+          for zone in ${{ matrix.zone }} ${{ matrix.zone2 }}; do
+            osmium extract -b "${{ matrix.bbox }}" --strategy smart "zones/${zone}.osm.pbf" -o "part$i.osm.pbf"
+            i=$((i+1))
+          done
+          rm -rf zones
+          if [ "$i" -eq 1 ]; then mv part0.osm.pbf area.osm.pbf
+          else osmium merge part*.osm.pbf -o area.osm.pbf && rm part*.osm.pbf; fi
+          ls -lh area.osm.pbf
       - name: Build GraphHopper graph
         run: |
           curl -fsSL -o gh.jar https://github.com/graphhopper/graphhopper/releases/download/4.0/graphhopper-web-4.0.jar
@@ -116,6 +166,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v5
         with:
+          pattern: routing-*
           path: packs
           merge-multiple: true
       - uses: softprops/action-gh-release@v2

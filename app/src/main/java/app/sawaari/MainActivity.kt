@@ -29,6 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import app.sawaari.sos.SosScreen
 import app.sawaari.sos.SosSender
 import app.sawaari.sos.SosSettings
@@ -174,6 +175,7 @@ class MainActivity : ComponentActivity() {
                         MapScreen(
                             routing = routing,
                             onDownloadArea = { name, bounds -> repo.download(name, bounds); tab = 1 },
+                            onSaveRideMap = { name, boxes -> repo.downloadCorridor(name, boxes) },
                             groupRiders = group?.riders.orEmpty(),
                             myUid = groups.myUid,
                             onLocation = { lastLocation = it; groups.publish(it); CrashWatch.onLocation(applicationContext, it); RideRecorder.onLocation(it) },
@@ -264,7 +266,7 @@ class MainActivity : ComponentActivity() {
                                 onDelete = repo::delete,
                                 onResume = { repo.resume(it) },
                                 routingStates = routingStates,
-                                onDownloadRoutingPack = routing::download,
+                                onDownloadRoutingPack = { pack -> routing.download(pack); app.appScope.launch { app.places.prefetch(pack) } },
                                 onDeleteRoutingPack = routing::delete,
                                 modifier = Modifier.fillMaxSize(),
                             )

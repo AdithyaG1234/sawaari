@@ -9,6 +9,7 @@
 
 Offline maps and ride areas         | app.sawaari.offline.OfflineModelsTest, app.sawaari.util.FormatBytesTest
 Offline routing packs               | app.sawaari.nav.RoutingPacksTest, app.sawaari.nav.RoutingCoverageTest
+Whole-trip offline (trip and state packs, map along the route) | app.sawaari.offline.RouteCorridorTest, app.sawaari.nav.RoutingCoverageTest, app.sawaari.nav.RoutingPacksTest
 Online routing (iPhone, Valhalla)   | app.sawaari.routing.ValhallaTest
 Route steps and geometry            | app.sawaari.routing.RouteTest, app.sawaari.geo.GeoTest
 Turn-by-turn navigation and reroute | app.sawaari.nav.NavigationTrackerTest, app.sawaari.nav.NavSessionTest

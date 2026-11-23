@@ -9,10 +9,14 @@ import kotlinx.coroutines.flow.update
 import org.json.JSONObject
 import org.maplibre.android.geometry.LatLngBounds
 import org.maplibre.android.offline.OfflineManager
+import org.maplibre.android.offline.OfflineGeometryRegionDefinition
 import org.maplibre.android.offline.OfflineRegion
+import org.maplibre.android.offline.OfflineRegionDefinition
 import org.maplibre.android.offline.OfflineRegionError
 import org.maplibre.android.offline.OfflineRegionStatus
 import org.maplibre.android.offline.OfflineTilePyramidRegionDefinition
+import org.maplibre.geojson.MultiPolygon
+import org.maplibre.geojson.Point
 
 /**
  * Wraps MapLibre's OfflineManager: download a bounding box of the map for offline use,
@@ -41,7 +45,32 @@ class OfflineRegionRepository(context: Context) {
      * (roads and town names) while keeping downloads to tens of MB per district.
      */
     fun download(name: String, bounds: LatLngBounds, minZoom: Double = 6.0, maxZoom: Double = 14.0, pixelRatio: Float = 2f) {
-        val definition = OfflineTilePyramidRegionDefinition(MapConfig.STYLE_URL, bounds, minZoom, maxZoom, pixelRatio)
+        create(name, OfflineTilePyramidRegionDefinition(MapConfig.STYLE_URL, bounds, minZoom, maxZoom, pixelRatio))
+    }
+
+    /**
+     * Download the map along a whole trip: [boxes] from [RouteCorridor.boxes], a band either side of the route,
+     * at full detail. Much smaller than the box the whole trip spans.
+     */
+    fun downloadCorridor(name: String, boxes: List<GeoBounds>, pixelRatio: Float = 2f) {
+        if (boxes.isEmpty()) return
+        val polygons = boxes.map { b ->
+            listOf(listOf(
+                Point.fromLngLat(b.west, b.south), Point.fromLngLat(b.east, b.south),
+                Point.fromLngLat(b.east, b.north), Point.fromLngLat(b.west, b.north),
+                Point.fromLngLat(b.west, b.south),
+            ))
+        }
+        create(
+            name,
+            OfflineGeometryRegionDefinition(
+                MapConfig.STYLE_URL, MultiPolygon.fromLngLats(polygons),
+                RouteCorridor.MIN_ZOOM.toDouble(), RouteCorridor.MAX_ZOOM.toDouble(), pixelRatio,
+            ),
+        )
+    }
+
+    private fun create(name: String, definition: OfflineRegionDefinition) {
         val metadata = JSONObject().put(KEY_NAME, name).toString().toByteArray()
         manager.createOfflineRegion(definition, metadata, object : OfflineManager.CreateOfflineRegionCallback {
             override fun onCreate(offlineRegion: OfflineRegion) = track(offlineRegion, resume = true)

@@ -21,6 +21,7 @@ The iPhone app is being built step by step in the same repo, sharing code with A
 ## Features
 - **Offline maps:** download the visible area, or pick from one-tap ride areas across India. These include Coorg, Ooty and Munnar, Goa and the Konkan, Gokarna, Kerala, Pondicherry, Hyderabad and Srisailam, Rishikesh and Chopta, Rajasthan, Manali to Leh, Spiti, Kashmir, Sikkim and Meghalaya. Downloaded maps work with no network.
 - **Offline navigation:** turn-by-turn voice directions are worked out on the phone (GraphHopper), with automatic rerouting. Each area also has offline places along the route: food, fuel, mechanics, tyre shops and hospitals.
+- **Whole-trip offline:** for a multi-day trip across several areas, one download covers every stop: "Bengaluru to Goa" (about 62 MB) or "Karnataka & Goa (whole states)" (about 170 MB). The ride plan offers the right one, then "Save the map for this whole route" saves the map in a band about 4 km either side of the route, at full detail, instead of the whole region.
 - **Ride plans:**
   - Long-press the map or search to set a start, up to 8 stops and a destination.
   - Reorder stops and turn on Round trip.
