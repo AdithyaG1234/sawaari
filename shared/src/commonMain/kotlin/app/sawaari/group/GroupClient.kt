@@ -270,11 +270,13 @@ class GroupClient(
         backend.write("groups/$code/members/$uid/breakAt", if (on) now().toString() else null) {}
     }
 
-    /** Leader only: share [plan] so every rider can load the same route. */
-    fun sharePlan(plan: RidePlan) = action {
+    /** Leader only: share [plan] so every rider can load the same route. [names] are map names for its points. */
+    fun sharePlan(plan: RidePlan, names: Map<GeoPoint, String> = emptyMap()) = action {
         val g = _group.value ?: return@action
         val end = plan.end ?: return@action
+        val keyed = app.sawaari.ride.Schedule.planNameKeys(plan) { names[it] }
         write("groups/${g.code}/plan", buildJsonObject {
+            if (keyed.isNotEmpty()) put("names", JsonObject(keyed.mapValues { JsonPrimitive(it.value.take(60)) }))
             put("end", point(end))
             put("stops", JsonArray(plan.stops.map { point(it) }))
             put("by", _myName.value.ifBlank { "Leader" })
@@ -520,6 +522,7 @@ class GroupClient(
             plan = plan?.let(::parsePlan),
             planBy = plan?.str("by").orEmpty(),
             planTs = plan?.long("ts") ?: 0L,
+            planNames = plan?.obj("names").orEmpty().mapNotNull { (k, v) -> (v as? JsonPrimitive)?.contentOrNull?.let { k to it } }.toMap(),
             meet = s.obj("meet")?.let(::parseMeet),
             schedule = s.obj("schedule")?.let(::parseSchedule),
             ride = s.obj("ride")?.let(::parseRide),

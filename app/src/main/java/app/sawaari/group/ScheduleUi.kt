@@ -86,7 +86,7 @@ fun ScheduleCard(
                     Spacer(Modifier.width(12.dp))
                     Column(Modifier.weight(1f)) {
                         Text(
-                            Schedule.label(key) + (t?.name?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""),
+                            Schedule.label(key) + Schedule.nameFor(key, t, g.planNames).takeIf { it.isNotBlank() }?.let { ": $it" }.orEmpty(),
                             fontWeight = if (isNext) FontWeight.Bold else FontWeight.Normal,
                         )
                         Text(
@@ -133,7 +133,8 @@ fun ScheduleCard(
         // Suggest a time an hour after the stop before it, so pit stops are quick to fill in.
         val before = rows.takeWhile { it.first != key }.mapNotNull { it.second?.at }.maxOrNull()
         StopTimeDialog(
-            label = Schedule.label(key), current = current, suggested = before?.let { it + 60 * 60_000L } ?: 0L,
+            label = Schedule.label(key), current = current, mapName = g.planNames[key].orEmpty(),
+            suggested = before?.let { it + 60 * 60_000L } ?: 0L,
             onSave = { t -> onSave(schedule.with(key, t)); editing = null },
             onDismiss = { editing = null },
         )
@@ -166,9 +167,13 @@ private fun RideSchedule.with(key: String, t: StopTime?): RideSchedule = when {
 }
 
 @Composable
-private fun StopTimeDialog(label: String, current: StopTime?, suggested: Long, onSave: (StopTime?) -> Unit, onDismiss: () -> Unit) {
+private fun StopTimeDialog(
+    label: String, current: StopTime?, mapName: String, suggested: Long,
+    onSave: (StopTime?) -> Unit, onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
-    var name by remember { mutableStateOf(current?.name.orEmpty()) }
+    // Starts with the place's name on the map; the leader can type their own instead.
+    var name by remember { mutableStateOf(current?.name?.takeIf { it.isNotBlank() } ?: mapName) }
     var time by remember { mutableLongStateOf(current?.at ?: 0L) }
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -177,15 +182,21 @@ private fun StopTimeDialog(label: String, current: StopTime?, suggested: Long, o
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(
                     value = name, onValueChange = { name = it.take(40) },
-                    label = { Text("Name (optional), e.g. Breakfast at Highway Inn") }, singleLine = true,
+                    label = { Text("Name, e.g. Breakfast at Highway Inn") }, singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text(if (mapName.isNotBlank()) "Name on the map: $mapName. Type your own to change it." else "Optional")
+                    },
                 )
+                if (mapName.isNotBlank() && name.trim() != mapName) {
+                    TextButton(onClick = { name = mapName }) { Text("Use the map name") }
+                }
                 OutlinedButton(onClick = { pickDateTime(context, if (time > 0) time else suggested) { time = it } }, modifier = Modifier.fillMaxWidth()) {
                     Text(if (time == 0L) "Pick date and time" else formatMeetTime(time))
                 }
             }
         },
-        confirmButton = { Button(enabled = time > 0, onClick = { onSave(StopTime(time, name.trim())) }) { Text("Save") } },
+        confirmButton = { Button(enabled = time > 0, onClick = { onSave(StopTime(time, name.trim().takeIf { it != mapName }.orEmpty())) }) { Text("Save") } },
         dismissButton = {
             Row {
                 if (current != null) TextButton(onClick = { onSave(null) }) { Text("Remove") }

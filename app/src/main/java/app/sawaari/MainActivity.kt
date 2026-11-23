@@ -183,7 +183,7 @@ class MainActivity : ComponentActivity() {
                             groupPlan = group?.plan,
                             groupPlanBy = group?.planBy.orEmpty(),
                             iAmLeader = group != null && group?.leaderUid == groups.myUid,
-                            onSharePlan = { groups.sharePlan(it) },
+                            onSharePlan = { plan, names -> groups.sharePlan(plan, names) },
                             meet = group?.meet,
                             onSetMeetingPoint = if (group != null && group?.leaderUid == groups.myUid)
                                 ({ p: GeoPoint, time: Long, note: String -> groups.setMeetingPoint(p, time, note) }) else null,

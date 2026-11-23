@@ -347,7 +347,7 @@ fun SawaariIosApp(bridge: IosMapBridge, groups: GroupClient, nav: NavSession, ri
                 nav = nav,
                 planEmpty = plan.isEmpty,
                 navigating = navigating,
-                onSharePlan = if (group != null && group?.leaderUid == groups.myUid) groups::sharePlan else null,
+                onSharePlan = if (group != null && group?.leaderUid == groups.myUid) ({ p: RidePlan -> groups.sharePlan(p) }) else null,
                 sharedPlan = group?.plan,
                 myPosition = myPosition,
                 onSos = { if (sosRun == null) sosRun = SosRun(SOS_COUNTDOWN_S, crash = false) },
