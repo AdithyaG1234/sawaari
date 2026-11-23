@@ -209,7 +209,19 @@ def debug(tag):
         log("debug dump failed:", e)
 
 
+def clear_anr():
+    """The emulator's launcher sometimes stops responding on slow CI machines: tap Wait."""
+    try:
+        if d(textContains="isn't responding").exists:
+            log("ANR dialog: waiting")
+            d(text="Wait").click()
+            time.sleep(1)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def tap(timeout=15, pause=1.2, **sel):
+    clear_anr()
     el = d(**sel)
     if not el.wait(timeout=timeout):
         raise RuntimeError(f"not found: {sel}")
@@ -218,17 +230,25 @@ def tap(timeout=15, pause=1.2, **sel):
 
 
 def has(timeout=3, **sel):
+    clear_anr()
     return d(**sel).wait(timeout=timeout)
 
 
 def scroll_to(**sel):
+    clear_anr()
     if d(**sel).exists:
         return
-    s = d(scrollable=True)
-    if s.exists:
-        s.scroll.to(**sel)
-    if not d(**sel).exists:
-        raise RuntimeError(f"can't scroll to {sel}")
+    w, h = d.window_size()
+    for direction in (1, -1):
+        for _ in range(25):
+            if direction > 0:
+                d.swipe(w // 2, int(h * 0.75), w // 2, int(h * 0.35), duration=0.35)
+            else:
+                d.swipe(w // 2, int(h * 0.35), w // 2, int(h * 0.75), duration=0.35)
+            time.sleep(0.5)
+            if d(**sel).exists:
+                return
+    raise RuntimeError(f"can't scroll to {sel}")
 
 
 def field(label):
@@ -304,7 +324,7 @@ def ride_button():
         return el
     # Collapsed (no group yet): the round Ride button on the right, below search.
     w, h = d.window_size()
-    for e in d(clickable=True):
+    for e in d(className="android.widget.Button"):
         b = e.info["bounds"]
         cx, cy = (b["left"] + b["right"]) / 2, (b["top"] + b["bottom"]) / 2
         size = b["right"] - b["left"]
@@ -314,6 +334,7 @@ def ride_button():
 
 
 def open_ride_window():
+    clear_anr()
     if d(description="Minimise").exists:
         return
     ride_button().click()
@@ -739,6 +760,11 @@ def main():
 
     d = u2.connect()
     d.implicitly_wait(10)
+    # Let the freshly booted emulator settle, so the launcher doesn't stall during the first scene.
+    d.press("home")
+    for _ in range(12):
+        time.sleep(5)
+        clear_anr()
     log("device", d.info)
     fb = Firebase()
     riders = [Rider(fb, spec, slot=i + 2) for i, spec in enumerate(it.RIDERS)]
