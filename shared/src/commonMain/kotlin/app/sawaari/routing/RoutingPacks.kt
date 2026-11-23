@@ -45,8 +45,8 @@ val routingPacks = listOf(
     RoutingPack("sikkim", "Gangtok, Nathula & North Sikkim", 88.0, 27.0, 88.95, 28.15, approxMb = 2),
     RoutingPack("meghalaya", "Guwahati, Shillong, Cherrapunji & Dawki", 90.8, 25.0, 92.5, 26.3, approxMb = 7),
     // Whole-trip packs: one download covers a multi-day trip across several ride areas.
-    RoutingPack("bengaluru-goa", "Bengaluru to Goa (Tumakuru, Chitradurga, Hubballi, Dharwad, Dandeli)", 73.6, 12.7, 77.8, 15.95, approxMb = 120, wholeTrip = true),
-    RoutingPack("karnataka-goa", "Karnataka & Goa (whole states)", 73.6, 11.5, 78.6, 18.5, approxMb = 260, wholeTrip = true),
+    RoutingPack("bengaluru-goa", "Bengaluru to Goa (Tumakuru, Chitradurga, Hubballi, Dharwad, Dandeli)", 73.6, 12.7, 77.8, 15.95, approxMb = 62, wholeTrip = true),
+    RoutingPack("karnataka-goa", "Karnataka & Goa (whole states)", 73.6, 11.5, 78.6, 18.5, approxMb = 170, wholeTrip = true),
 )
 
 /**
