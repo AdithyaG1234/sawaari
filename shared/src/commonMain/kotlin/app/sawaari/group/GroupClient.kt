@@ -285,9 +285,16 @@ class GroupClient(
         })
     }
 
+    /** Leader only: remove the ride: its route, its schedule (so reminders stop on every phone) and started/ended. */
     fun clearSharedPlan() = action {
         val g = _group.value ?: return@action
-        write("groups/${g.code}/plan", null)
+        update("groups/${g.code}", JsonObject(mapOf("plan" to JsonNull, "schedule" to JsonNull, "ride" to JsonNull)))
+    }
+
+    /** Leader only: clear the stop times and the started/ended state, ready to plan the next ride. */
+    fun clearSchedule() = action {
+        val g = _group.value ?: return@action
+        update("groups/${g.code}", JsonObject(mapOf("schedule" to JsonNull, "ride" to JsonNull)))
     }
 
     /** Leader only: set the times for the start, pit stops and destination (null or empty clears it). */

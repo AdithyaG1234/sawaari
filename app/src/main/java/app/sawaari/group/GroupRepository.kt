@@ -358,9 +358,16 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         db.getReference("groups/$code/members/$uid/rerouteAt").setValue(System.currentTimeMillis())
     }
 
+    /** Leader only: remove the ride: its route, its schedule (so reminders stop on every phone) and started/ended. */
     fun clearSharedPlan() = action {
         val g = _group.value ?: return@action
-        db.getReference("groups/${g.code}/plan").removeValue().await()
+        db.getReference("groups/${g.code}").updateChildren(mapOf("plan" to null, "schedule" to null, "ride" to null)).await()
+    }
+
+    /** Leader only: clear the stop times and the started/ended state, ready to plan the next ride. */
+    fun clearSchedule() = action {
+        val g = _group.value ?: return@action
+        db.getReference("groups/${g.code}").updateChildren(mapOf("schedule" to null, "ride" to null)).await()
     }
 
     /** Tell everyone in the group that I need help. Returns false if I'm not in a group. */
