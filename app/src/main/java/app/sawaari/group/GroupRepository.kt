@@ -31,6 +31,9 @@ import kotlinx.coroutines.tasks.await
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
  *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
+ *   groups/{code}/schedule          {start?, stops?, end?, by, ts}  each {at, name?} (leader only)
+ *   groups/{code}/ride              {state: started|ended, at, by, uid} (any rider)
+ *   groups/{code}/gear/{uid}        {itemId: name}  packing-list items a rider shares with the group
  *   groups/{code}/alerts/{id}       {uid, name, lat?, lon?, ts}
  */
 /**
@@ -151,7 +154,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
     /** Leader only: take [uid] out of the group, freeing their seat (e.g. someone who changed phones). */
     fun removeRider(uid: String) = action {
         val g = _group.value ?: return@action
-        db.getReference("groups/${g.code}").updateChildren(mapOf("locations/$uid" to null, "members/$uid" to null)).await()
+        db.getReference("groups/${g.code}").updateChildren(mapOf("locations/$uid" to null, "gear/$uid" to null, "members/$uid" to null)).await()
         freeSeats(g.code, uid)
     }
 
@@ -168,6 +171,7 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         prefs.edit().remove(KEY_CODE).apply()
         myUid?.let { uid ->
             db.getReference("groups/$code/locations/$uid").removeValue()
+            db.getReference("groups/$code/gear/$uid").removeValue()
             db.getReference("groups/$code/members/$uid").removeValue()
             freeSeats(code, uid)
         }
@@ -267,6 +271,41 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
         )
         plan.start?.let { data["start"] = pt(it) }
         db.getReference("groups/${g.code}/plan").setValue(data).await()
+    }
+
+    /** Leader only: set the times for the start, pit stops and destination (null or empty clears it). */
+    fun saveSchedule(schedule: RideSchedule?) = action {
+        val g = _group.value ?: return@action
+        val ref = db.getReference("groups/${g.code}/schedule")
+        if (schedule == null || schedule.isEmpty) { ref.removeValue().await(); return@action }
+        fun t(x: StopTime) = buildMap<String, Any> { put("at", x.at); if (x.name.isNotBlank()) put("name", x.name.trim().take(40)) }
+        val data = mutableMapOf<String, Any>("by" to _myName.value.ifBlank { "Leader" }, "ts" to System.currentTimeMillis())
+        schedule.start?.let { data["start"] = t(it) }
+        schedule.end?.let { data["end"] = t(it) }
+        if (schedule.stops.isNotEmpty()) data["stops"] = schedule.stops.entries.associate { (i, x) -> i.toString() to t(x) }
+        ref.setValue(data).await()
+    }
+
+    /** Share these items of my packing list with the group ([items] maps item id to name; empty stops sharing). */
+    fun shareGear(items: Map<String, String>) {
+        val code = _group.value?.code ?: return
+        val uid = myUid ?: return
+        val ref = db.getReference("groups/$code/gear/$uid")
+        if (items.isEmpty()) ref.removeValue() else ref.setValue(items.mapValues { it.value.take(40) })
+    }
+
+    /** Any rider: start the planned ride. Everyone in the group gets a notification. */
+    fun startRide() = setRideState(RideStatus.STARTED)
+
+    /** Any rider: end the ride. Schedule reminders stop for everyone. */
+    fun endRide() = setRideState(RideStatus.ENDED)
+
+    private fun setRideState(state: String) = action {
+        val g = _group.value ?: return@action
+        val uid = myUid ?: return@action
+        db.getReference("groups/${g.code}/ride").setValue(
+            mapOf("state" to state, "at" to System.currentTimeMillis(), "by" to _myName.value.ifBlank { "Rider" }, "uid" to uid)
+        ).await()
     }
 
     /** Leader only: share where and when to meet. [time] is 0 if no time is set. */
@@ -470,6 +509,31 @@ class GroupRepository(context: Context, private val scope: CoroutineScope) {
             planBy = s.child("plan/by").getValue(String::class.java).orEmpty(),
             planTs = s.child("plan/ts").getValue(Long::class.java) ?: 0L,
             meet = parseMeet(s.child("meet")),
+            schedule = parseSchedule(s.child("schedule")),
+            ride = parseRide(s.child("ride")),
+            sharedGear = s.child("gear").children.mapNotNull { r ->
+                val items = r.children.mapNotNull { it.getValue(String::class.java) }
+                if (items.isEmpty()) null else r.key!! to items
+            }.toMap(),
+        )
+    }
+
+    private fun parseStopTime(t: DataSnapshot): StopTime? {
+        val at = t.child("at").getValue(Long::class.java) ?: return null
+        return StopTime(at, t.child("name").getValue(String::class.java).orEmpty())
+    }
+
+    private fun parseSchedule(s: DataSnapshot): RideSchedule? {
+        if (!s.exists()) return null
+        val stops = s.child("stops").children.mapNotNull { c -> c.key?.toIntOrNull()?.let { i -> parseStopTime(c)?.let { i to it } } }.toMap()
+        return RideSchedule(parseStopTime(s.child("start")), stops, parseStopTime(s.child("end"))).takeUnless { it.isEmpty }
+    }
+
+    private fun parseRide(r: DataSnapshot): RideStatus? {
+        val state = r.child("state").getValue(String::class.java) ?: return null
+        return RideStatus(
+            state, r.child("at").getValue(Long::class.java) ?: 0L,
+            r.child("by").getValue(String::class.java).orEmpty(), r.child("uid").getValue(String::class.java).orEmpty(),
         )
     }
 

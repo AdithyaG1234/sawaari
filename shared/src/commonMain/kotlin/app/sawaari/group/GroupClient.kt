@@ -36,6 +36,9 @@ import kotlin.coroutines.resumeWithException
  *   groups/{code}/locations/{uid}   {lat, lon, speed, bearing, ts}
  *   groups/{code}/plan              {start?, stops?, end, by, ts}   (leader only)
  *   groups/{code}/meet              {lat, lon, time?, note?, by, ts} (leader only)
+ *   groups/{code}/schedule          {start?, stops?, end?, by, ts}  each {at, name?} (leader only)
+ *   groups/{code}/ride              {state: started|ended, at, by, uid} (any rider)
+ *   groups/{code}/gear/{uid}        {itemId: name}  packing-list items a rider shares with the group
  *   groups/{code}/alerts/{id}       {uid, name, lat?, lon?, ts}
  *   chats/{code}/{id}               {uid, name, ts, text?, voiceMs?}
  */
@@ -43,6 +46,8 @@ class GroupClient(
     private val backend: GroupBackend,
     private val prefs: KeyValueStore,
     private val scope: CoroutineScope,
+    /** [Plans.PRICING_ON]; off for the live trial, so any number of riders can join for free. */
+    private val pricingOn: Boolean = Plans.PRICING_ON,
     private val now: () -> Long = ::nowMillis,
 ) {
     val configured: Boolean = backend.isConfigured()
@@ -130,7 +135,7 @@ class GroupClient(
             val groupPro = (read("groups/$code/pro") as? JsonPrimitive)?.booleanOrNull == true
             val firstThree = (1..Plans.FREE_GROUP_RIDERS).mapNotNull { slots[it.toString()] }.associateWith { isPro(it) }
             val seat = if (mine != null) Plans.Seat(mine.toInt(), false)
-                else Plans.seatFor(slots, groupPro, mePro) { firstThree[it] ?: false }
+                else Plans.seatFor(slots, groupPro, mePro, pricingOn) { firstThree[it] ?: false }
             val ok = runCatching {
                 update("groups/$code", buildJsonObject {
                     put("slots/${seat.seat}", uid)
@@ -151,6 +156,7 @@ class GroupClient(
         prefs.putString(KEY_CODE, null)
         myUid?.let { uid ->
             backend.write("groups/$code/locations/$uid", null) {}
+            backend.write("groups/$code/gear/$uid", null) {}
             backend.write("groups/$code/members/$uid", null) {}
             freeSeats(code, uid)
         }
@@ -161,6 +167,7 @@ class GroupClient(
         val g = _group.value ?: return@action
         update("groups/${g.code}", buildJsonObject {
             put("locations/$uid", JsonNull)
+            put("gear/$uid", JsonNull)
             put("members/$uid", JsonNull)
         })
         freeSeats(g.code, uid)
@@ -279,6 +286,40 @@ class GroupClient(
     fun clearSharedPlan() = action {
         val g = _group.value ?: return@action
         write("groups/${g.code}/plan", null)
+    }
+
+    /** Leader only: set the times for the start, pit stops and destination (null or empty clears it). */
+    fun saveSchedule(schedule: RideSchedule?) = action {
+        val g = _group.value ?: return@action
+        if (schedule == null || schedule.isEmpty) { write("groups/${g.code}/schedule", null); return@action }
+        fun t(x: StopTime) = buildJsonObject { put("at", x.at); if (x.name.isNotBlank()) put("name", x.name.trim().take(40)) }
+        write("groups/${g.code}/schedule", buildJsonObject {
+            schedule.start?.let { put("start", t(it)) }
+            schedule.end?.let { put("end", t(it)) }
+            if (schedule.stops.isNotEmpty()) put("stops", JsonObject(schedule.stops.entries.associate { (i, x) -> i.toString() to t(x) }))
+            put("by", _myName.value.ifBlank { "Leader" })
+            put("ts", now())
+        })
+    }
+
+    /** Share these items of my packing list with the group ([items] maps item id to name; empty stops sharing). */
+    fun shareGear(items: Map<String, String>) {
+        val code = _group.value?.code ?: return
+        val uid = myUid ?: return
+        val value = if (items.isEmpty()) null else JsonObject(items.mapValues { JsonPrimitive(it.value.take(40)) }).toString()
+        backend.write("groups/$code/gear/$uid", value) {}
+    }
+
+    /** Any rider: start the planned ride (or end it). Everyone in the group is told. */
+    fun startRide() = setRideState(RideStatus.STARTED)
+    fun endRide() = setRideState(RideStatus.ENDED)
+
+    private fun setRideState(state: String) = action {
+        val g = _group.value ?: return@action
+        val uid = myUid ?: return@action
+        write("groups/${g.code}/ride", buildJsonObject {
+            put("state", state); put("at", now()); put("by", _myName.value.ifBlank { "Rider" }); put("uid", uid)
+        })
     }
 
     /** Leader only: share where and when to meet. [time] is 0 if no time is set. */
@@ -480,7 +521,32 @@ class GroupClient(
             planBy = plan?.str("by").orEmpty(),
             planTs = plan?.long("ts") ?: 0L,
             meet = s.obj("meet")?.let(::parseMeet),
+            schedule = s.obj("schedule")?.let(::parseSchedule),
+            ride = s.obj("ride")?.let(::parseRide),
+            sharedGear = s.obj("gear").orEmpty().mapNotNull { (uid, v) ->
+                val items = (v as? JsonObject)?.values?.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }.orEmpty()
+                if (items.isEmpty()) null else uid to items
+            }.toMap(),
         )
+    }
+
+    private fun parseStopTime(e: JsonElement?): StopTime? {
+        val o = e as? JsonObject ?: return null
+        return StopTime(o.long("at") ?: return null, o.str("name").orEmpty())
+    }
+
+    private fun parseSchedule(o: JsonObject): RideSchedule? {
+        val stops = when (val s = o["stops"]) {
+            is JsonArray -> s.mapIndexedNotNull { i, e -> parseStopTime(e)?.let { i to it } }.toMap()
+            is JsonObject -> s.entries.mapNotNull { (k, e) -> k.toIntOrNull()?.let { i -> parseStopTime(e)?.let { i to it } } }.toMap()
+            else -> emptyMap()
+        }
+        return RideSchedule(parseStopTime(o["start"]), stops, parseStopTime(o["end"])).takeUnless { it.isEmpty }
+    }
+
+    private fun parseRide(o: JsonObject): RideStatus? {
+        val state = o.str("state") ?: return null
+        return RideStatus(state, o.long("at") ?: 0L, o.str("by").orEmpty(), o.str("uid").orEmpty())
     }
 
     private fun parseMeet(m: JsonObject): MeetingPoint? {

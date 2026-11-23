@@ -12,8 +12,19 @@ package app.sawaari.plans
  * at groups/{code}/slots/{n}. Taking seat 4 turns on groups/{code}/pro, which needs the riders in
  * seats 1-3 and the new rider to have Pro; once it's on, every new rider needs Pro. Only the server
  * (functions/) can write the subscription records at subs/{uid}.
+ *
+ * Live trial: while [PRICING_ON] is false every feature is free for everyone: groups of any size
+ * (up to [PRO_GROUP_RIDERS]) and the garage with no time limit, and no Pro prompts are shown. The
+ * database rules follow the same switch through config/pricing (missing or false = free).
  */
 object Plans {
+    /**
+     * Pricing and the 3-rider limit. Off for the Goa live trial (Nov 2026): everything is unlocked.
+     * To turn pricing back on: set this to true, release the app, and set config/pricing to true in
+     * the Firebase Realtime Database (Data tab), so the server rules enforce seats again too.
+     */
+    const val PRICING_ON = false
+
     const val FREE_GROUP_RIDERS = 3
     const val PRO_GROUP_RIDERS = 99
     const val GARAGE_TRIAL_DAYS = 14
@@ -52,8 +63,12 @@ object Plans {
      * subscription, and [isPro] answers for another rider. Throws IllegalArgumentException with a message
      * to show when the rider can't join.
      */
-    fun seatFor(seats: Map<String, String>, groupIsPro: Boolean, mePro: Boolean, isPro: (String) -> Boolean): Seat {
+    fun seatFor(
+        seats: Map<String, String>, groupIsPro: Boolean, mePro: Boolean,
+        pricingOn: Boolean = PRICING_ON, isPro: (String) -> Boolean,
+    ): Seat {
         val free = (1..PRO_GROUP_RIDERS).firstOrNull { it.toString() !in seats } ?: throw IllegalArgumentException(GROUP_FULL)
+        if (!pricingOn) return Seat(free, makePro = false)
         if (groupIsPro) {
             if (!mePro) throw IllegalArgumentException(NEED_PRO_GROUP_IS_BIG)
             return Seat(free, makePro = false)
@@ -71,7 +86,8 @@ object Plans {
         return if (left <= 0) 0 else ((left + DAY_MS - 1) / DAY_MS).toInt().coerceAtMost(GARAGE_TRIAL_DAYS)
     }
 
-    fun garageOpen(trialStart: Long, now: Long, pro: Boolean) = pro || garageTrialDaysLeft(trialStart, now) > 0
+    fun garageOpen(trialStart: Long, now: Long, pro: Boolean, pricingOn: Boolean = PRICING_ON) =
+        !pricingOn || pro || garageTrialDaysLeft(trialStart, now) > 0
 
     /** A subscription record from subs/{uid}/until is active while its end is in the future. */
     fun subscriptionActive(until: Long?, now: Long) = until != null && until > now

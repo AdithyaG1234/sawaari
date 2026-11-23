@@ -54,6 +54,32 @@ data class Rider(
 /** Where and when the group meets before the ride. Set by the leader. */
 data class MeetingPoint(val point: GeoPoint, val time: Long, val note: String, val by: String)
 
+/** A scheduled time for one stop of the ride, with an optional name such as "Breakfast at Highway Inn". */
+data class StopTime(val at: Long, val name: String = "")
+
+/**
+ * When the group should be at each main stop: the start, each pit stop of the shared plan (by its
+ * index in the plan's stop list) and the destination. Set by the leader at groups/{code}/schedule.
+ */
+data class RideSchedule(
+    val start: StopTime? = null,
+    val stops: Map<Int, StopTime> = emptyMap(),
+    val end: StopTime? = null,
+) {
+    val isEmpty: Boolean get() = start == null && stops.isEmpty() && end == null
+}
+
+/** Whether a planned ride is under way: any rider can start it and end it (groups/{code}/ride). */
+data class RideStatus(val state: String, val at: Long, val by: String, val byUid: String) {
+    val started: Boolean get() = state == STARTED
+    val ended: Boolean get() = state == ENDED
+
+    companion object {
+        const val STARTED = "started"
+        const val ENDED = "ended"
+    }
+}
+
 data class SosAlert(
     val id: String,
     val uid: String,
@@ -73,6 +99,12 @@ data class RideGroup(
     val planBy: String = "",
     val planTs: Long = 0L,
     val meet: MeetingPoint? = null,
+    /** Scheduled times for the start, pit stops and destination, if the leader set any. */
+    val schedule: RideSchedule? = null,
+    /** Started or ended by a rider; null while the ride is only planned. */
+    val ride: RideStatus? = null,
+    /** Things riders carry and are happy to share (puncture kit, first-aid...), by rider uid. */
+    val sharedGear: Map<String, List<String>> = emptyMap(),
 ) {
     val leader: Rider? get() = riders.firstOrNull { it.uid == leaderUid }
 

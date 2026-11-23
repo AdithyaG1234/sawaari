@@ -167,6 +167,38 @@ class GroupClientTest {
         assertNotNull(leader.error.value)
     }
 
+    @Test fun scheduleAndAnyRiderStartsTheRide() {
+        val db = FakeBackend("leaderUid")
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Goa")
+        val code = leader.group.value!!.code
+        leader.sharePlan(RidePlan(stops = listOf(GeoPoint(15.0, 74.0), GeoPoint(15.2, 74.1)), end = GeoPoint(15.5, 73.8)))
+        leader.saveSchedule(RideSchedule(start = StopTime(clock + 60_000), stops = mapOf(1 to StopTime(clock + 120_000, "Lunch")), end = StopTime(clock + 300_000)))
+        val s = leader.group.value?.schedule
+        assertEquals(clock + 60_000, s?.start?.at)
+        assertEquals("Lunch", s?.stops?.get(1)?.name)
+        assertNull(s?.stops?.get(0))
+        assertEquals(clock + 300_000, s?.end?.at)
+        assertNull(leader.group.value?.ride)
+
+        db.switchUser("riderUid")
+        val rider = GroupClient(db, MemoryStore(), scope) { clock }
+        rider.join(code)
+        rider.startRide()
+        assertEquals(RideStatus(RideStatus.STARTED, clock, "Rider", "riderUid"), rider.group.value?.ride)
+        rider.endRide()
+        assertTrue(rider.group.value?.ride?.ended == true)
+
+        rider.shareGear(mapOf("d7" to "Puncture repair kit"))
+        assertEquals(mapOf("riderUid" to listOf("Puncture repair kit")), rider.group.value?.sharedGear)
+        rider.shareGear(emptyMap())
+        assertTrue(rider.group.value?.sharedGear?.isEmpty() == true)
+
+        db.switchUser("leaderUid")
+        leader.saveSchedule(null)
+        assertNull(db.get("groups/$code/schedule"))
+    }
+
     @Test fun leaveRemovesMe() {
         val db = FakeBackend("u1")
         val store = MemoryStore()
@@ -187,14 +219,14 @@ class GroupSeatsTest {
     private val clock = 1_000_000L
 
     private fun joinAs(db: FakeBackend, uid: String, code: String): GroupClient =
-        GroupClient(db.asUser(uid), MemoryStore(), scope) { clock }.also { it.join(code) }
+        GroupClient(db.asUser(uid), MemoryStore(), scope, pricingOn = true) { clock }.also { it.join(code) }
 
     private fun givePro(db: FakeBackend, vararg uids: String) =
         uids.forEach { db.write("subs/$it", """{"until":${clock + 1000},"plan":"yearly"}""") {} }
 
     @Test fun freeGroupStopsAtThreeRiders() {
         val db = FakeBackend("lead")
-        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        val leader = GroupClient(db, MemoryStore(), scope, pricingOn = true) { clock }
         leader.create("Ride")
         val code = leader.group.value!!.code
         assertEquals("\"lead\"", db.get("groups/$code/slots/1").toString())
@@ -211,7 +243,7 @@ class GroupSeatsTest {
     @Test fun pastThreeEveryoneNeedsPro() {
         val db = FakeBackend("lead")
         givePro(db, "lead", "r2", "r4", "r6")
-        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        val leader = GroupClient(db, MemoryStore(), scope, pricingOn = true) { clock }
         leader.create("Ride")
         val code = leader.group.value!!.code
         val r2 = joinAs(db, "r2", code)
@@ -240,9 +272,23 @@ class GroupSeatsTest {
         assertNull(db.get("groups/$code/members/r4"))
     }
 
+    @Test fun withPricingOffAnyoneJoinsFree() {
+        val db = FakeBackend("lead")
+        val leader = GroupClient(db, MemoryStore(), scope, pricingOn = false) { clock }
+        leader.create("Goa trip")
+        val code = leader.group.value!!.code
+        (2..6).forEach { n ->
+            val r = GroupClient(db.asUser("r$n"), MemoryStore(), scope, pricingOn = false) { clock }.also { it.join(code) }
+            assertNull(r.error.value)
+        }
+        assertEquals("\"r6\"", db.get("groups/$code/slots/6").toString())
+        assertNull(db.get("groups/$code/pro"))
+        assertEquals(6, leader.group.value?.riders?.size)
+    }
+
     @Test fun leaderRemovesARiderAndFreesTheSeat() {
         val db = FakeBackend("lead")
-        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        val leader = GroupClient(db, MemoryStore(), scope, pricingOn = true) { clock }
         leader.create("Ride")
         val code = leader.group.value!!.code
         joinAs(db, "r2", code)

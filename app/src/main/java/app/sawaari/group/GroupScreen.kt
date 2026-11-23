@@ -200,6 +200,15 @@ fun GroupScreen(
         item { RouteStep(g.plan, g.planBy, iAmLeader, onPlanOnMap, onImportLink, onShowRoute) }
 
         item {
+            ScheduleCard(
+                g, iAmLeader, now, busy,
+                onSave = repo::saveSchedule, onStart = repo::startRide, onEnd = repo::endRide,
+            )
+        }
+
+        item { PackingCard(g, repo) }
+
+        item {
             val seen = remember(chat.size, showChat) { ChatSeen.last(context) }
             val unread = chat.count { it.ts > seen && it.uid != repo.myUid }
             val last = chat.lastOrNull()
@@ -301,8 +310,8 @@ fun GroupScreen(
         item {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Riders (${g.riders.size})", style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                // Up to 3 riders is free; a bigger group needs Pro for every rider.
-                Text(
+                // Up to 3 riders is free; a bigger group needs Pro for every rider. Hidden while pricing is off.
+                if (app.sawaari.plans.Plans.PRICING_ON) Text(
                     if (g.riders.size > app.sawaari.plans.Plans.FREE_GROUP_RIDERS) "Pro group" else "Free up to ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
