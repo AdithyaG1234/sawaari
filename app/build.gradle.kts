@@ -64,6 +64,8 @@ android {
             isEnable = true
             reset()
             include("arm64-v8a", "armeabi-v7a")
+            // -PwithX86 adds an emulator build (used to record the how-to video in CI).
+            if (providers.gradleProperty("withX86").isPresent) include("x86_64")
             isUniversalApk = false
         }
     }

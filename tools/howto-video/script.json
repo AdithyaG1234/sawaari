@@ -1,0 +1,106 @@
+[
+  {
+    "id": "intro",
+    "card": "intro",
+    "title": "How to use Sawaari",
+    "caption": "Example: our Goa ride, Option 1, 26 to 30 November",
+    "say": "Welcome to Sawaari, the group ride app for bikers. In this video we'll set up a real trip, our Goa ride, Option 1, from the 26th to the 30th of November. We start at the Tumkur Road toll gate, and stop at Chitradurga, Haveri, Dandeli, Castle Rock, Vagator, Dharwad and Chitradurga again, before coming home to Bengaluru."
+  },
+  {
+    "id": "first-open",
+    "title": "1. Open the app",
+    "caption": "A short tour shows the main buttons. The map is your home screen.",
+    "say": "Install Sawaari from the download link and open it. A short tour shows you the main buttons. Tap Next, or Skip. You can add SOS contacts now, or later. The map is your home screen, and it works even with no signal once you download maps."
+  },
+  {
+    "id": "profile-name",
+    "title": "2. Add your name",
+    "caption": "Profile (top right) → Your name. Riders see this name on the map.",
+    "say": "First, tap the profile button at the top right and type your name. This is the name other riders see on the map and in the group chat."
+  },
+  {
+    "id": "create-group",
+    "title": "3. Create the ride group",
+    "caption": "Ride button → name the ride → Create group. Share the 6-letter code.",
+    "say": "The trip leader taps the Ride button on the map, types a name for the ride, like Goa ride Option 1, and taps Create group. Sawaari gives the group a six letter invite code. Tap Invite to send it to your riders on WhatsApp."
+  },
+  {
+    "id": "paste-route",
+    "title": "4. Add the route",
+    "caption": "Paste the Google Maps link. Every stop keeps its name from the map.",
+    "say": "Next, add the route. Plan it in Google Maps with all the stops, copy the link, then in Sawaari tap Paste Google Maps link and Load route. All nine places of Option 1 come in, each with its name from the map. Then tap Share plan with group, so every rider gets the same route."
+  },
+  {
+    "id": "riders-join",
+    "title": "5. Riders join",
+    "caption": "Riders enter the code. Everyone shows live on the map.",
+    "say": "Your friends open Sawaari, tap Ride, and enter the code to join. Here Ravi, Kiran and Meera have joined. Everyone appears live on the map, and the group's route loads on their phones automatically. During the trial, groups of any size are free."
+  },
+  {
+    "id": "schedule-a",
+    "title": "6. Set the ride schedule",
+    "caption": "Tap a stop → pick the date and time. Rename a stop if you like.",
+    "say": "Now the leader sets the schedule. Open the Ride schedule card and tap Start. Pick the 26th, at 4 AM. For pit stop 1 we type our own name, Breakfast at Benne Dose Hotel, and set 7 AM. Any stop keeps its map name unless you change it."
+  },
+  {
+    "id": "schedule-b",
+    "title": "6. Set the ride schedule",
+    "caption": "Haveri 10:30 · Dandeli 2 PM · Castle Rock 7:30 · Vagator 11:30 · Dharwad 2:30 · Chitradurga 8 PM · Bengaluru 11 AM",
+    "say": "Do the same for every stop, straight from the itinerary. Haveri at 10:30, Dandeli at 2 PM, Castle Rock on the 27th at 7:30, Vagator at 11:30, then on the 29th Dharwad at 2:30, Chitradurga at 8 PM, and home to Bengaluru on the 30th at 11 AM."
+  },
+  {
+    "id": "packing",
+    "title": "7. Packing checklist",
+    "caption": "Your own checklist. Tap Share on things the group can use.",
+    "say": "Under What to carry, each rider has their own packing checklist. Tick things off as you pack. Tap Share on useful items, like a puncture kit or a tyre inflator, so the group knows who is carrying them. You can see that Ravi has a first aid kit, and Kiran has the toolkit and chain lube."
+  },
+  {
+    "id": "reminder",
+    "title": "8. Reminders at every stop",
+    "caption": "Every rider gets a notification at each scheduled time, even with no signal.",
+    "say": "On the morning of the ride, every rider's phone shows a reminder at each scheduled time, even with no signal. Here it's 4 AM on the 26th, time to start at the toll gate."
+  },
+  {
+    "id": "start-ride",
+    "title": "9. Start the ride",
+    "caption": "Any rider can tap Start ride. The whole group is told.",
+    "say": "When everyone is ready, any rider can tap Start ride. Not only the leader. The whole group gets a notification that the ride has started."
+  },
+  {
+    "id": "riding",
+    "title": "10. On the road",
+    "caption": "See every rider live. Quick chat messages. Break and fall-behind alerts.",
+    "say": "On the road, you see every rider moving live on the map, even with your screen off. Open the group chat to send a quick message like All good, with one tap. If someone stops for a break or falls behind, the whole group gets an alert."
+  },
+  {
+    "id": "sos",
+    "title": "11. SOS",
+    "caption": "Add emergency contacts once. SOS counts down 5 seconds, then alerts the group.",
+    "say": "Add your emergency contacts once, in Profile, under SOS. In an emergency, tap the red SOS button. After a five second countdown, your group gets your location, and your messaging app opens with the SOS text for your contacts. Tap Cancel if it was a mistake."
+  },
+  {
+    "id": "offline-maps",
+    "title": "12. Offline maps",
+    "caption": "Download the Goa & Konkan area on Wi-Fi before you leave.",
+    "say": "Before the trip, download offline maps on Wi-Fi, like the Goa and Konkan coast area, so the map works in the ghats with no signal."
+  },
+  {
+    "id": "end-ride",
+    "title": "13. End the ride",
+    "caption": "Any rider can end the ride. Reminders stop for everyone.",
+    "say": "When you're home, any rider can end the ride. Here Kiran ended it, and the reminders stop for everyone."
+  },
+  {
+    "id": "history",
+    "title": "14. Your rides",
+    "caption": "Every ride is saved on your phone with distance, time and speed.",
+    "say": "Every ride is saved on your phone, with the distance, riding time and speeds."
+  },
+  {
+    "id": "outro",
+    "card": "outro",
+    "title": "Ride safe!",
+    "caption": "Download: github.com/AdithyaG1234/sawaari/releases/latest",
+    "say": "That's it. Create the group, paste the route, set the times, and ride together. Have a safe and happy Goa ride!"
+  }
+]
