@@ -3,6 +3,7 @@ package app.sawaari.nav
 import app.sawaari.geo.GeoPoint
 import app.sawaari.share.RouteLinks
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -12,6 +13,17 @@ class RouteLinksTest {
     private val blr = GeoPoint(12.97160, 77.59460)
     private val mys = GeoPoint(12.29580, 76.63940)
     private val mdk = GeoPoint(12.42440, 75.73820)
+
+    @Test fun pasteBoxOnlyTakesRouteLikeText() {
+        assertTrue(RouteLinks.looksLikeRoute("Check this https://maps.app.goo.gl/AbC123xyz"))
+        assertTrue(RouteLinks.looksLikeRoute("https://www.google.com/maps/dir//12.4244,75.7382/@12.4,75.7,12z"))
+        assertTrue(RouteLinks.looksLikeRoute(" 15.4909, 73.8278 "))
+        // Not a route: copied JSON, a message with a comma, another website.
+        assertFalse(RouteLinks.looksLikeRoute("{\n  \"rules\": {\n    \"groups\": {"))
+        assertFalse(RouteLinks.looksLikeRoute("See you at 6, near the toll"))
+        assertFalse(RouteLinks.looksLikeRoute("https://example.com/page"))
+        assertFalse(RouteLinks.looksLikeRoute(null))
+    }
 
     @Test fun sawaariLinkRoundTrip() {
         val plan = RidePlan(start = blr, stops = listOf(mys), end = mdk)

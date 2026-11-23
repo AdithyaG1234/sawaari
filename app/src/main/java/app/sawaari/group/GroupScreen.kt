@@ -445,7 +445,7 @@ private fun PlanTripCard(onPlanOnMap: () -> Unit, onImportLink: (String) -> Unit
 @Composable
 private fun PasteRouteDialog(onDismiss: () -> Unit, onLoad: (String) -> Unit) {
     val clipboard = androidx.compose.ui.platform.LocalClipboardManager.current
-    var link by remember { mutableStateOf(clipboard.getText()?.text?.takeIf { "http" in it || "," in it }.orEmpty()) }
+    var link by remember { mutableStateOf(clipboard.getText()?.text?.takeIf { RouteLinks.looksLikeRoute(it) }?.trim().orEmpty()) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Route from Google Maps") },
