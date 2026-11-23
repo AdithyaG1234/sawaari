@@ -6,6 +6,9 @@ import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material.icons.filled.Groups
@@ -136,30 +139,37 @@ internal fun RouteCard(
                     nav.myPosition?.let { distanceMeters(it, plan.start!!) < 200 } == true -> "Your location"
                     else -> pointName(plan.start!!, nav, places)
                 }
-                PlanRow("S", START_COLOR, "Start: $startText", plan.start?.let { nav.problems[it] },
-                    onRemove = plan.start?.let { { nav.setStart(null) } })
-                plan.stops.forEachIndexed { i, p ->
-                    val name = pointName(p, nav, places)
+                // A long trip (up to 8 stops, some with notes) would push the buttons below off the screen,
+                // so the list of places scrolls on its own.
+                Column(
+                    Modifier.heightIn(max = 300.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    PlanRow("S", START_COLOR, "Start: $startText", plan.start?.let { nav.problems[it] },
+                        onRemove = plan.start?.let { { nav.setStart(null) } })
+                    plan.stops.forEachIndexed { i, p ->
+                        val name = pointName(p, nav, places)
+                        PlanRow(
+                            "${i + 1}", STOP_COLOR, "Stop ${i + 1}: $name", nav.problems[p],
+                            onRemove = { nav.removeStop(i) },
+                            onUp = if (i > 0) ({ nav.moveStop(i, i - 1) }) else null,
+                            onDown = if (i < plan.stops.lastIndex) ({ nav.moveStop(i, i + 1) }) else null,
+                            onFindNearby = nav.labelFor(p)?.let { label -> { nav.removeStop(i); onFindNearby(label) } },
+                        )
+                    }
+                    val end = plan.end
                     PlanRow(
-                        "${i + 1}", STOP_COLOR, "Stop ${i + 1}: $name", nav.problems[p],
-                        onRemove = { nav.removeStop(i) },
-                        onUp = if (i > 0) ({ nav.moveStop(i, i - 1) }) else null,
-                        onDown = if (i < plan.stops.lastIndex) ({ nav.moveStop(i, i + 1) }) else null,
-                        onFindNearby = nav.labelFor(p)?.let { label -> { nav.removeStop(i); onFindNearby(label) } },
+                        "E", END_COLOR,
+                        when {
+                            end == null -> "Destination: search above, or long-press the map"
+                            nav.isRoundTrip -> "Destination: back to the start"
+                            else -> "Destination: ${pointName(end, nav, places)}"
+                        },
+                        end?.let { nav.problems[it] },
+                        onRemove = end?.let { { nav.clearEnd() } },
+                        onFindNearby = end?.let { e -> nav.labelFor(e)?.let { label -> { nav.clearEnd(); onFindNearby(label) } } },
                     )
                 }
-                val end = plan.end
-                PlanRow(
-                    "E", END_COLOR,
-                    when {
-                        end == null -> "Destination: search above, or long-press the map"
-                        nav.isRoundTrip -> "Destination: back to the start"
-                        else -> "Destination: ${pointName(end, nav, places)}"
-                    },
-                    end?.let { nav.problems[it] },
-                    onRemove = end?.let { { nav.clearEnd() } },
-                    onFindNearby = end?.let { e -> nav.labelFor(e)?.let { label -> { nav.clearEnd(); onFindNearby(label) } } },
-                )
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("Round trip (come back to the start)", style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
                     Switch(checked = nav.isRoundTrip, onCheckedChange = { nav.makeRoundTrip(it) })
