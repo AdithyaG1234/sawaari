@@ -77,8 +77,20 @@ internal fun RouteCard(
     onShareRoute: () -> Unit,
     onFindNearby: (String) -> Unit,
     onCreateGroup: (() -> Unit)? = null,
+    /** Leader with a route shared to the group: also clear the group's route and schedule. */
+    onClearGroupRide: (() -> Unit)? = null,
 ) {
     val plan = nav.plan
+    var askClear by rememberSaveable { mutableStateOf(false) }
+    if (askClear) androidx.compose.material3.AlertDialog(
+        onDismissRequest = { askClear = false },
+        title = { Text("Clear the route for the group too?") },
+        text = { Text("This route is shared with your group. Clearing it for everyone also removes the ride schedule and cancels the stop reminders on every phone.") },
+        confirmButton = {
+            Button(onClick = { askClear = false; nav.clear(); onClearGroupRide?.invoke() }) { Text("Clear for everyone") }
+        },
+        dismissButton = { TextButton(onClick = { askClear = false; nav.clear() }) { Text("Only my map") } },
+    )
     val r = nav.route
     var expanded by rememberSaveable { mutableStateOf(true) }
     Card(
@@ -171,7 +183,7 @@ internal fun RouteCard(
                         Icon(Icons.Default.Navigation, null); Spacer(Modifier.width(8.dp)); Text("Start")
                     }
                 }
-                OutlinedButton(onClick = { nav.clear() }) { Text("Clear") }
+                OutlinedButton(onClick = { if (onClearGroupRide != null && sharedPlan != null) askClear = true else nav.clear() }) { Text("Clear") }
             }
             if (expanded && plan.end != null) {
                 TextButton(onClick = onShareRoute) {
