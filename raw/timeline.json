@@ -3,18 +3,18 @@
   "clip": "01-first-open.mp4",
   "scene": "first-open",
   "ok": true,
-  "seconds": 39.18,
+  "seconds": 36.84,
   "marks": [
    {
-    "t": 8.98,
+    "t": 8.72,
     "label": "tour"
    },
    {
-    "t": 24.18,
+    "t": 23.55,
     "label": "sos prompt"
    },
    {
-    "t": 30.58,
+    "t": 28.59,
     "label": "map"
    }
   ]
@@ -23,10 +23,10 @@
   "clip": "02-profile-name.mp4",
   "scene": "profile-name",
   "ok": true,
-  "seconds": 24.6,
+  "seconds": 22.81,
   "marks": [
    {
-    "t": 4.07,
+    "t": 3.01,
     "label": "profile"
    }
   ]
@@ -34,49 +34,101 @@
  {
   "clip": "03-create-group.mp4",
   "scene": "create-group",
-  "ok": false,
-  "seconds": 111.78,
+  "ok": true,
+  "seconds": 32.7,
   "marks": [
    {
-    "t": 4.03,
+    "t": 4.34,
     "label": "ride window"
+   },
+   {
+    "t": 18.31,
+    "label": "group created"
    }
   ]
  },
  {
   "clip": "04-paste-route.mp4",
   "scene": "paste-route",
-  "ok": false,
-  "seconds": 107.52,
-  "marks": []
+  "ok": true,
+  "seconds": 31.17,
+  "marks": [
+   {
+    "t": 4.44,
+    "label": "paste box"
+   },
+   {
+    "t": 15.69,
+    "label": "route loaded"
+   },
+   {
+    "t": 21.69,
+    "label": "plan card"
+   }
+  ]
  },
  {
   "clip": "05-riders-join.mp4",
   "scene": "riders-join",
-  "ok": false,
-  "seconds": 6.08,
-  "marks": []
+  "ok": true,
+  "seconds": 82.19,
+  "marks": [
+   {
+    "t": 67.28,
+    "label": "riders list"
+   },
+   {
+    "t": 73.97,
+    "label": "riders on map"
+   }
+  ]
  },
  {
   "clip": "06-schedule-a.mp4",
   "scene": "schedule-a",
-  "ok": false,
-  "seconds": 107.74,
-  "marks": []
+  "ok": true,
+  "seconds": 162.25,
+  "marks": [
+   {
+    "t": 24.78,
+    "label": "entry 0"
+   },
+   {
+    "t": 48.32,
+    "label": "entry 1"
+   }
+  ]
  },
  {
   "clip": "07-schedule-b.mp4",
   "scene": "schedule-b",
   "ok": false,
-  "seconds": 107.51,
+  "seconds": 5.29,
   "marks": []
  },
  {
   "clip": "08-packing.mp4",
   "scene": "packing",
-  "ok": false,
-  "seconds": 106.48,
-  "marks": []
+  "ok": true,
+  "seconds": 107.71,
+  "marks": [
+   {
+    "t": 35.27,
+    "label": "shared by others"
+   },
+   {
+    "t": 39.97,
+    "label": "checklist"
+   },
+   {
+    "t": 94.03,
+    "label": "share Tyre inflator"
+   },
+   {
+    "t": 100.29,
+    "label": "card"
+   }
+  ]
  },
  {
   "clip": "09-reminder.mp4",
@@ -89,7 +141,7 @@
     "label": "waiting"
    },
    {
-    "t": 64.28,
+    "t": 64.25,
     "label": "notification"
    }
   ]
@@ -97,50 +149,62 @@
  {
   "clip": "10-start-ride.mp4",
   "scene": "start-ride",
-  "ok": false,
-  "seconds": 106.42,
-  "marks": []
+  "ok": true,
+  "seconds": 44.39,
+  "marks": [
+   {
+    "t": 26.51,
+    "label": "confirm"
+   },
+   {
+    "t": 32.23,
+    "label": "started"
+   }
+  ]
  },
  {
   "clip": "11-riding.mp4",
   "scene": "riding",
-  "ok": false,
-  "seconds": 20.72,
+  "ok": true,
+  "seconds": 82.94,
   "marks": [
    {
     "t": 1.5,
     "label": "riding"
+   },
+   {
+    "t": 16.28,
+    "label": "chat"
+   },
+   {
+    "t": 54.89,
+    "label": "chat open"
+   },
+   {
+    "t": 69.12,
+    "label": "break"
    }
   ]
  },
  {
   "clip": "12-sos.mp4",
   "scene": "sos",
-  "ok": true,
-  "seconds": 34.62,
-  "marks": [
-   {
-    "t": 5.85,
-    "label": "sos setup"
-   },
-   {
-    "t": 25.61,
-    "label": "countdown"
-   }
-  ]
+  "ok": false,
+  "seconds": 20.77,
+  "marks": []
  },
  {
   "clip": "13-offline-maps.mp4",
   "scene": "offline-maps",
   "ok": true,
-  "seconds": 57.72,
+  "seconds": 57.36,
   "marks": [
    {
-    "t": 5.79,
+    "t": 6.08,
     "label": "offline"
    },
    {
-    "t": 39.88,
+    "t": 39.4,
     "label": "downloading"
    }
   ]
@@ -148,18 +212,23 @@
  {
   "clip": "14-end-ride.mp4",
   "scene": "end-ride",
-  "ok": false,
-  "seconds": 5.76,
-  "marks": []
+  "ok": true,
+  "seconds": 32.24,
+  "marks": [
+   {
+    "t": 20.24,
+    "label": "ended"
+   }
+  ]
  },
  {
   "clip": "15-history.mp4",
   "scene": "history",
   "ok": true,
-  "seconds": 18.57,
+  "seconds": 26.18,
   "marks": [
    {
-    "t": 7.02,
+    "t": 14.83,
     "label": "history"
    }
   ]
