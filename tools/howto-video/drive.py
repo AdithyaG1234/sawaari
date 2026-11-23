@@ -322,14 +322,17 @@ def ride_button():
     el = d(textMatches=r"^(Ride|\d+ riding)$")
     if el.exists:
         return el
-    # Collapsed (no group yet): the round Ride button on the right, below search.
+    # Collapsed (no group yet): the round Ride button on the right, below the location and tour buttons
+    # (about 31% down the screen on this phone).
     w, h = d.window_size()
+    best, dist = None, 1e9
     for e in d(className="android.widget.Button"):
         b = e.info["bounds"]
         cx, cy = (b["left"] + b["right"]) / 2, (b["top"] + b["bottom"]) / 2
-        size = b["right"] - b["left"]
-        if cx > w * 0.75 and h * 0.2 < cy < h * 0.4 and 100 < size < 260:
-            return e
+        if cx > w * 0.75 and abs(cy - h * 0.307) < dist and abs(cy - h * 0.307) < h * 0.05:
+            best, dist = e, abs(cy - h * 0.307)
+    if best:
+        return best
     raise RuntimeError("no Ride button")
 
 
