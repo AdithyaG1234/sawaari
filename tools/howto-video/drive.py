@@ -114,7 +114,12 @@ class Firebase:
 
     def sign_in(self):
         r = self._req(f"https://identitytoolkit.googleapis.com/v1/accounts:signUp?key={self.key}", "POST", {"returnSecureToken": True})
-        return r["localId"], r["idToken"]
+        return r["localId"], r["idToken"], r["refreshToken"]
+
+    def refresh(self, refresh_token):
+        r = self._req(f"https://securetoken.googleapis.com/v1/token?key={self.key}", "POST",
+                      {"grant_type": "refresh_token", "refresh_token": refresh_token})
+        return r["id_token"], r["refresh_token"]
 
     def call(self, token, path, method="GET", body=None):
         return self._req(f"{self.db}/{path}.json?auth={token}", method, body)
@@ -127,8 +132,17 @@ class Rider:
     def __init__(self, fb, spec, slot):
         self.fb, self.spec, self.slot = fb, spec, slot
         self.name = spec["name"]
-        self.uid, self.token = fb.sign_in()
+        self.uid, self._token, self.refresh_token = fb.sign_in()
+        self.token_at = time.time()
         self.code = None
+
+    @property
+    def token(self):
+        # ID tokens last an hour; refresh well before that.
+        if time.time() - self.token_at > 40 * 60:
+            self._token, self.refresh_token = self.fb.refresh(self.refresh_token)
+            self.token_at = time.time()
+        return self._token
 
     def join(self, code):
         self.code = code
@@ -244,7 +258,7 @@ def scroll_to(**sel):
         return
     w, h = d.window_size()
     for direction in (1, -1):
-        for _ in range(25):
+        for _ in range(10):
             if direction > 0:
                 d.swipe(w // 2, int(h * 0.75), w // 2, int(h * 0.35), duration=0.35)
             else:
@@ -284,11 +298,20 @@ def hide_keyboard():
 
 
 def type_into(label, text):
-    f = field(label)
-    f.click()
-    time.sleep(0.5)
-    f.set_text(text)
-    time.sleep(0.8)
+    for attempt in range(3):
+        f = field(label)
+        f.click()
+        time.sleep(0.8)
+        if attempt == 0:
+            f.set_text(text)
+        else:
+            f.clear_text()
+            d.send_keys(text, clear=True)
+        time.sleep(1.0)
+        if text in (field(label).get_text() or ""):
+            return
+        log("retyping", label)
+    raise RuntimeError(f"couldn't type into {label}")
 
 
 def center_y(el):
@@ -469,15 +492,15 @@ def scene_paste_route(rec):
     time.sleep(6)
     # The plan card: scroll it so the stops show, then share it with the group.
     rec.mark("plan card")
-    if has(timeout=3, textContains="Share plan with group"):
-        sc = d(scrollable=True)
-        try:
-            sc.scroll.toEnd(max_swipes=3) if sc.exists else None
-        except Exception:  # noqa: BLE001
-            pass
-        time.sleep(2)
-        tap(textContains="Share plan with group", pause=3)
-        rec.mark("shared")
+    w, h = d.window_size()
+    for _ in range(8):
+        if d(textContains="Share plan with group").exists:
+            break
+        d.swipe(w // 2, int(h * 0.85), w // 2, int(h * 0.45), duration=0.6)
+        time.sleep(1.2)
+    time.sleep(1.5)
+    tap(textContains="Share plan with group", pause=3)
+    rec.mark("shared")
     time.sleep(2)
     shrink_plan()
     try:
