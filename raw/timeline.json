@@ -3,18 +3,18 @@
   "clip": "01-first-open.mp4",
   "scene": "first-open",
   "ok": true,
-  "seconds": 35.32,
+  "seconds": 35.46,
   "marks": [
    {
-    "t": 8.8,
+    "t": 8.59,
     "label": "tour"
    },
    {
-    "t": 22.53,
+    "t": 22.57,
     "label": "sos prompt"
    },
    {
-    "t": 26.92,
+    "t": 27.11,
     "label": "map"
    }
   ]
@@ -23,10 +23,10 @@
   "clip": "02-profile-name.mp4",
   "scene": "profile-name",
   "ok": true,
-  "seconds": 20.02,
+  "seconds": 23.5,
   "marks": [
    {
-    "t": 3.19,
+    "t": 3.04,
     "label": "profile"
    }
   ]
@@ -34,12 +34,16 @@
  {
   "clip": "03-create-group.mp4",
   "scene": "create-group",
-  "ok": false,
-  "seconds": 22.76,
+  "ok": true,
+  "seconds": 28.72,
   "marks": [
    {
-    "t": 4.0,
+    "t": 3.93,
     "label": "ride window"
+   },
+   {
+    "t": 16.41,
+    "label": "group created"
    }
   ]
  },
@@ -47,133 +51,19 @@
   "clip": "04-paste-route.mp4",
   "scene": "paste-route",
   "ok": false,
-  "seconds": 73.97,
+  "seconds": 66.74,
   "marks": [
    {
-    "t": 8.09,
+    "t": 4.17,
     "label": "paste box"
    },
    {
-    "t": 18.4,
+    "t": 12.44,
     "label": "route loaded"
    },
    {
-    "t": 24.4,
+    "t": 18.44,
     "label": "plan card"
-   }
-  ]
- },
- {
-  "clip": "05-riders-join.mp4",
-  "scene": "riders-join",
-  "ok": false,
-  "seconds": 6.05,
-  "marks": []
- },
- {
-  "clip": "06-schedule-a.mp4",
-  "scene": "schedule-a",
-  "ok": false,
-  "seconds": 203.27,
-  "marks": []
- },
- {
-  "clip": "07-schedule-b.mp4",
-  "scene": "schedule-b",
-  "ok": false,
-  "seconds": 201.19,
-  "marks": []
- },
- {
-  "clip": "08-packing.mp4",
-  "scene": "packing",
-  "ok": false,
-  "seconds": 199.98,
-  "marks": []
- },
- {
-  "clip": "09-reminder.mp4",
-  "scene": "reminder",
-  "ok": true,
-  "seconds": 76.01,
-  "marks": [
-   {
-    "t": 1.5,
-    "label": "waiting"
-   },
-   {
-    "t": 64.29,
-    "label": "notification"
-   }
-  ]
- },
- {
-  "clip": "10-start-ride.mp4",
-  "scene": "start-ride",
-  "ok": false,
-  "seconds": 202.69,
-  "marks": []
- },
- {
-  "clip": "11-riding.mp4",
-  "scene": "riding",
-  "ok": false,
-  "seconds": 20.62,
-  "marks": [
-   {
-    "t": 1.5,
-    "label": "riding"
-   }
-  ]
- },
- {
-  "clip": "12-sos.mp4",
-  "scene": "sos",
-  "ok": true,
-  "seconds": 35.02,
-  "marks": [
-   {
-    "t": 5.23,
-    "label": "sos setup"
-   },
-   {
-    "t": 26.1,
-    "label": "countdown"
-   }
-  ]
- },
- {
-  "clip": "13-offline-maps.mp4",
-  "scene": "offline-maps",
-  "ok": true,
-  "seconds": 54.59,
-  "marks": [
-   {
-    "t": 5.71,
-    "label": "offline"
-   },
-   {
-    "t": 36.68,
-    "label": "downloading"
-   }
-  ]
- },
- {
-  "clip": "14-end-ride.mp4",
-  "scene": "end-ride",
-  "ok": false,
-  "seconds": 5.71,
-  "marks": []
- },
- {
-  "clip": "15-history.mp4",
-  "scene": "history",
-  "ok": true,
-  "seconds": 18.83,
-  "marks": [
-   {
-    "t": 7.41,
-    "label": "history"
    }
   ]
  }
