@@ -99,11 +99,11 @@ fun SettingsScreen(
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("Your garage", style = MaterialTheme.typography.titleMedium)
         val trialLeft = remember(Unit) { app.sawaari.plans.Pro.garageTrialDaysLeft() }
-        val due = remember(Unit) { if (proActive || trialLeft > 0) GarageReminders.all().size else 0 }
+        val due = remember(Unit) { if (app.sawaari.plans.Pro.garageOpen()) GarageReminders.all().size else 0 }
         Text(
             when {
                 due > 0 -> "$due job${if (due == 1) "" else "s"} need attention."
-                proActive -> "Your motorcycles, cars and bicycles: service reminders and insurance and PUC expiry dates."
+                proActive || !app.sawaari.plans.Plans.PRICING_ON -> "Your motorcycles, cars and bicycles: service reminders and insurance and PUC expiry dates."
                 trialLeft > 0 -> "Free trial: $trialLeft day${if (trialLeft == 1) "" else "s"} left, then part of Sawaari Pro. Service reminders and insurance and PUC expiry dates."
                 else -> "Part of Sawaari Pro. Your vehicles are still saved on this phone."
             },
@@ -113,15 +113,18 @@ fun SettingsScreen(
         OutlinedButton(onClick = onGarage, modifier = Modifier.fillMaxWidth()) {
             Icon(Icons.Default.TwoWheeler, null); Spacer(Modifier.width(8.dp)); Text("Vehicles and service")
         }
-        HorizontalDivider(Modifier.padding(vertical = 4.dp))
-        Text("Sawaari Pro", style = MaterialTheme.typography.titleMedium)
-        Text(
-            if (proActive) "Thank you! You can ride in groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}, and the garage is open."
-            else "Groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS} riders (everyone in the group needs Pro) and the garage. ${app.sawaari.plans.Plans.PRICE_QUARTERLY} for 3 months or ${app.sawaari.plans.Plans.PRICE_YEARLY} a year.",
-            style = MaterialTheme.typography.bodySmall,
-        )
-        OutlinedButton(onClick = onPro, modifier = Modifier.fillMaxWidth()) {
-            Icon(Icons.Default.WorkspacePremium, null); Spacer(Modifier.width(8.dp)); Text(if (proActive) "Manage Sawaari Pro" else "See Sawaari Pro")
+        // Pro is hidden while pricing is off (live trial): everything is free.
+        if (app.sawaari.plans.Plans.PRICING_ON) {
+            HorizontalDivider(Modifier.padding(vertical = 4.dp))
+            Text("Sawaari Pro", style = MaterialTheme.typography.titleMedium)
+            Text(
+                if (proActive) "Thank you! You can ride in groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS}, and the garage is open."
+                else "Groups of more than ${app.sawaari.plans.Plans.FREE_GROUP_RIDERS} riders (everyone in the group needs Pro) and the garage. ${app.sawaari.plans.Plans.PRICE_QUARTERLY} for 3 months or ${app.sawaari.plans.Plans.PRICE_YEARLY} a year.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            OutlinedButton(onClick = onPro, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Default.WorkspacePremium, null); Spacer(Modifier.width(8.dp)); Text(if (proActive) "Manage Sawaari Pro" else "See Sawaari Pro")
+            }
         }
         HorizontalDivider(Modifier.padding(vertical = 4.dp))
         Text("App colours", style = MaterialTheme.typography.titleMedium)

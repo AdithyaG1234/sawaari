@@ -117,7 +117,7 @@ fun MeetingPointDialog(point: GeoPoint, onSave: (time: Long, note: String) -> Un
     )
 }
 
-private fun pickDateTime(context: Context, current: Long, onPicked: (Long) -> Unit) {
+internal fun pickDateTime(context: Context, current: Long, onPicked: (Long) -> Unit) {
     val cal = Calendar.getInstance().apply {
         if (current > 0) timeInMillis = current
         else { add(Calendar.DAY_OF_YEAR, 1); set(Calendar.HOUR_OF_DAY, 6); set(Calendar.MINUTE, 0) }

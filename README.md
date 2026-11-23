@@ -31,6 +31,8 @@ The iPhone app is being built step by step in the same repo, sharing code with A
   - Creating a group asks for the route: paste a Google Maps link or plan it on the offline map. A planned route can be turned into a group with one tap.
   - Invite riders with a 6-letter code and see everyone live on the map, even with the screen off. Riders who join, even later, get the route on their map.
   - The leader sets a meeting point.
+  - Ride schedule: the leader sets times (and optional names) for the start, each pit stop and the destination. Every rider gets a notification when each time comes, even with no signal. Any rider can start or end the planned ride, and the whole group is told.
+  - What to carry: each rider has their own packing checklist (kept on their phone). Items they mark Share, like a puncture kit or first-aid kit, show to the group so others know who has them.
   - Riders can be given roles: Sweep, Marshal or Medic.
 - **Group chat:** one-tap quick messages ("Fuel stop", "Puncture, need help") and hold-to-talk voice notes, with notifications while riding.
 - **Alerts for the whole group:**
@@ -69,6 +71,8 @@ Actions → Build APK → Run workflow, enter a version such as `1.0.0` (or push
 Without `google-services.json` the app still builds; the Group tab just explains the setup.
 
 ## Free and Pro plans
+**Right now pricing is off for the Goa live trial:** every feature is free and groups can have up to 99 riders. The switch is `Plans.PRICING_ON` in `shared/.../plans/Plans.kt` and, on the server, `config/pricing` in the Realtime Database (missing or false = free). To turn pricing back on: set `PRICING_ON = true` and release, then set `config/pricing` to `true` in Firebase → Realtime Database → Data.
+
 - **Free:** maps, offline navigation, SOS, crash detection, ride history, and ride groups of up to 3 riders. The garage is free for the first 14 days.
 - **Sawaari Pro:** ₹200 for 3 months or ₹500 a year, through Google Play. A group with more than 3 riders needs Pro for **every** rider in it, the first 3 included. Pro also keeps the garage open.
 

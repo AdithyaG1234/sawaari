@@ -11,7 +11,7 @@
           ".read": "auth != null",
           "$n": {
             ".write": "auth != null && (newData.exists() ? (!data.exists() && newData.val() === auth.uid) : (data.val() === auth.uid || root.child('groups').child($code).child('meta').child('leader').val() === auth.uid))",
-            ".validate": "newData.isString() && (($n.matches(/^[1-3]$/) && (newData.parent().parent().child('pro').val() !== true || root.child('subs').child(newData.val()).child('until').val() > now)) || ($n.matches(/^([4-9]|[1-9][0-9])$/) && newData.parent().parent().child('pro').val() === true && root.child('subs').child(newData.val()).child('until').val() > now))"
+            ".validate": "newData.isString() && ((root.child('config').child('pricing').val() !== true && $n.matches(/^([1-9]|[1-9][0-9])$/)) || ($n.matches(/^[1-3]$/) && (newData.parent().parent().child('pro').val() !== true || root.child('subs').child(newData.val()).child('until').val() > now)) || ($n.matches(/^([4-9]|[1-9][0-9])$/) && newData.parent().parent().child('pro').val() === true && root.child('subs').child(newData.val()).child('until').val() > now))"
           }
         },
         "pro": {
@@ -59,6 +59,25 @@
             ".validate": "newData.hasChildren(['uid', 'name', 'ts']) && newData.child('ts').isNumber()"
           }
         },
+        "schedule": {
+          ".write": "auth != null && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid",
+          ".validate": "!newData.exists() || newData.child('ts').isNumber()",
+          "start": { ".validate": "newData.hasChildren(['at']) && newData.child('at').isNumber() && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 40))" },
+          "end": { ".validate": "newData.hasChildren(['at']) && newData.child('at').isNumber() && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 40))" },
+          "stops": {
+            "$i": { ".validate": "$i.matches(/^[0-7]$/) && newData.hasChildren(['at']) && newData.child('at').isNumber() && (!newData.child('name').exists() || (newData.child('name').isString() && newData.child('name').val().length <= 40))" }
+          }
+        },
+        "gear": {
+          "$uid": {
+            ".write": "auth != null && (($uid === auth.uid && (!newData.exists() || root.child('groups').child($code).child('members').child(auth.uid).exists())) || (!newData.exists() && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid))",
+            "$item": { ".validate": "$item.matches(/^[A-Za-z0-9_-]{1,24}$/) && newData.isString() && newData.val().length <= 40" }
+          }
+        },
+        "ride": {
+          ".write": "auth != null && root.child('groups').child($code).child('members').child(auth.uid).exists()",
+          ".validate": "!newData.exists() || (newData.child('state').isString() && newData.child('state').val().matches(/^(started|ended)$/) && newData.child('at').isNumber() && newData.child('at').val() <= now + 60000 && newData.child('uid').val() === auth.uid && newData.child('by').isString() && newData.child('by').val().length <= 40)"
+        },
         "meet": {
           ".write": "auth != null && root.child('groups').child($code).child('meta').child('leader').val() === auth.uid",
           ".validate": "!newData.exists() || (newData.child('lat').isNumber() && newData.child('lon').isNumber() && newData.child('ts').isNumber() && (!newData.child('note').exists() || (newData.child('note').isString() && newData.child('note').val().length <= 120)))"
@@ -83,6 +102,10 @@
           ".validate": "newData.isString() && newData.val().length <= 125000"
         }
       }
+    },
+    "config": {
+      ".read": "auth != null",
+      ".write": false
     },
     "subs": {
       "$uid": {

@@ -39,6 +39,7 @@ class RideService : Service() {
     private val watcher = GroupWatcher()
     private var me: GeoPoint? = null
     private val notifiedSos = mutableSetOf<String>()
+    private var lastScheduleCheck = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -64,6 +65,9 @@ class RideService : Service() {
                     groups.publish(loc)
                     RideRecorder.onLocation(loc)
                     CrashWatch.onLocation(this@RideService, loc)
+                    // Backup for the schedule alarms, which Android can delay while the phone dozes.
+                    val t = System.currentTimeMillis()
+                    if (t - lastScheduleCheck > 30_000L) { lastScheduleCheck = t; ScheduleAlarms.checkDue(this@RideService, groups.group.value) }
                 }
             }
             scope.launch {
