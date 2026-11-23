@@ -58,7 +58,9 @@ object RouteCorridor {
             var start = cols.first(); var prev = start
             for (c in cols.drop(1)) { if (c != prev + 1) { runs += Run(start, prev); start = c }; prev = c }
             runs += Run(start, prev)
-            open.entries.filter { (run, rows) -> rows.second != row - 1 || run !in runs }.forEach { (run, rows) -> close(run, rows); open.remove(run) }
+            // Copy the finished runs out first: removing while holding live map entries fails on iPhone.
+            val finished = open.filter { (run, rows) -> rows.second != row - 1 || run !in runs }.toList()
+            finished.forEach { (run, rows) -> close(run, rows); open.remove(run) }
             runs.forEach { run -> open[run] = (open[run]?.first ?: row) to row }
         }
         open.forEach { (run, rows) -> close(run, rows) }

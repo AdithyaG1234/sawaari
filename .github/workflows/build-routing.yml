@@ -25,6 +25,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
+      # Geofabrik refuses connections when too many packs download at once.
+      max-parallel: 6
       matrix:
         include:
           - id: bengaluru-coorg
@@ -87,7 +89,8 @@ jobs:
         run: |
           i=0
           for zone in ${{ matrix.zone }}; do
-            curl -fsSL -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${zone}-latest.osm.pbf"
+            # Retry: many packs download from Geofabrik at once, and it sometimes refuses a connection.
+            curl -fsSL --retry 5 --retry-delay 30 --retry-all-errors -o zone.osm.pbf "https://download.geofabrik.de/asia/india/${zone}-latest.osm.pbf"
             osmium extract -b "${{ matrix.bbox }}" --strategy smart zone.osm.pbf -o "part$i.osm.pbf"
             rm zone.osm.pbf
             i=$((i+1))
