@@ -40,19 +40,22 @@
     "id": "schedule-a",
     "title": "6. Set the ride schedule",
     "caption": "Tap a stop → pick the date and time. Rename a stop if you like.",
-    "say": "Now the leader sets the schedule. Open the Ride schedule card and tap Start. Pick the 26th, at 4 AM. For pit stop 1 we type our own name, Breakfast at Benne Dose Hotel, and set 7 AM. Any stop keeps its map name unless you change it."
+    "say": "Now the leader sets the schedule. Open the Ride schedule card and tap Start. Pick the 26th, at 4 AM. For pit stop 1 we type our own name, Breakfast at Benne Dose Hotel, and set 7 AM. Any stop keeps its map name unless you change it.",
+    "max_speed": 3
   },
   {
     "id": "schedule-b",
     "title": "6. Set the ride schedule",
     "caption": "Haveri 10:30 · Dandeli 2 PM · Castle Rock 7:30 · Vagator 11:30 · Dharwad 2:30 · Chitradurga 8 PM · Bengaluru 11 AM",
-    "say": "Do the same for every stop, straight from the itinerary. Haveri at 10:30, Dandeli at 2 PM, Castle Rock on the 27th at 7:30, Vagator at 11:30, then on the 29th Dharwad at 2:30, Chitradurga at 8 PM, and home to Bengaluru on the 30th at 11 AM."
+    "say": "Do the same for every stop, straight from the itinerary. Haveri at 10:30, Dandeli at 2 PM, Castle Rock on the 27th at 7:30, Vagator at 11:30, then on the 29th Dharwad at 2:30, Chitradurga at 8 PM, and home to Bengaluru on the 30th at 11 AM.",
+    "max_speed": 6
   },
   {
     "id": "packing",
     "title": "7. Packing checklist",
     "caption": "Your own checklist. Tap Share on things the group can use.",
-    "say": "Under What to carry, each rider has their own packing checklist. Tick things off as you pack. Tap Share on useful items, like a puncture kit or a tyre inflator, so the group knows who is carrying them. You can see that Ravi has a first aid kit, and Kiran has the toolkit and chain lube."
+    "say": "Under What to carry, each rider has their own packing checklist. Tick things off as you pack. Tap Share on useful items, like a puncture kit or a tyre inflator, so the group knows who is carrying them. You can see that Ravi has a first aid kit, and Kiran has the toolkit and chain lube.",
+    "max_speed": 3.5
   },
   {
     "id": "reminder",
@@ -64,13 +67,15 @@
     "id": "start-ride",
     "title": "9. Start the ride",
     "caption": "Any rider can tap Start ride. The whole group is told.",
-    "say": "When everyone is ready, any rider can tap Start ride. Not only the leader. The whole group gets a notification that the ride has started."
+    "say": "When everyone is ready, any rider can tap Start ride. Not only the leader. The whole group gets a notification that the ride has started.",
+    "max_speed": 3.5
   },
   {
     "id": "riding",
     "title": "10. On the road",
     "caption": "See every rider live. Quick chat messages. Break and fall-behind alerts.",
-    "say": "On the road, you see every rider moving live on the map, even with your screen off. Open the group chat to send a quick message like All good, with one tap. If someone stops for a break or falls behind, the whole group gets an alert."
+    "say": "On the road, you see every rider moving live on the map, even with your screen off. Open the group chat to send a quick message like All good, with one tap. If someone stops for a break or falls behind, the whole group gets an alert.",
+    "max_speed": 4
   },
   {
     "id": "sos",
@@ -82,7 +87,8 @@
     "id": "offline-maps",
     "title": "12. Offline maps",
     "caption": "Download the Goa & Konkan area on Wi-Fi before you leave.",
-    "say": "Before the trip, download offline maps on Wi-Fi, like the Goa and Konkan coast area, so the map works in the ghats with no signal."
+    "say": "Before the trip, download offline maps on Wi-Fi, like the Goa and Konkan coast area, so the map works in the ghats with no signal.",
+    "max_speed": 5
   },
   {
     "id": "end-ride",

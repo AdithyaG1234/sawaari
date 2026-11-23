@@ -209,8 +209,9 @@ def main(raw, voices, dest):
         # Speed the phone up to fit the voice, but not so much that taps are hard to follow;
         # past that, the scene runs longer than its voice-over.
         speed = max(1.0, length / target)
-        if speed > MAX_SPEED:
-            speed = MAX_SPEED
+        cap = s.get("max_speed", MAX_SPEED)  # repetitive scenes (typing in times) can go faster
+        if speed > cap:
+            speed = cap
             target = length / speed
         bg, sub_top = scene_background(s["title"], s["caption"], (len(step_ids), step_ids.index(s["title"])))
         bgp = f"{tmp}/{n:02d}-bg.png"
