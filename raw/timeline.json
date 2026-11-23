@@ -3,18 +3,18 @@
   "clip": "01-first-open.mp4",
   "scene": "first-open",
   "ok": true,
-  "seconds": 35.46,
+  "seconds": 37.62,
   "marks": [
    {
-    "t": 8.59,
+    "t": 9.02,
     "label": "tour"
    },
    {
-    "t": 22.57,
+    "t": 24.02,
     "label": "sos prompt"
    },
    {
-    "t": 27.11,
+    "t": 29.17,
     "label": "map"
    }
   ]
@@ -23,10 +23,10 @@
   "clip": "02-profile-name.mp4",
   "scene": "profile-name",
   "ok": true,
-  "seconds": 23.5,
+  "seconds": 30.11,
   "marks": [
    {
-    "t": 3.04,
+    "t": 3.3,
     "label": "profile"
    }
   ]
@@ -35,14 +35,14 @@
   "clip": "03-create-group.mp4",
   "scene": "create-group",
   "ok": true,
-  "seconds": 28.72,
+  "seconds": 33.09,
   "marks": [
    {
-    "t": 3.93,
+    "t": 4.73,
     "label": "ride window"
    },
    {
-    "t": 16.41,
+    "t": 18.25,
     "label": "group created"
    }
   ]
@@ -50,20 +50,228 @@
  {
   "clip": "04-paste-route.mp4",
   "scene": "paste-route",
-  "ok": false,
-  "seconds": 66.74,
+  "ok": true,
+  "seconds": 43.88,
   "marks": [
    {
-    "t": 4.17,
+    "t": 4.59,
     "label": "paste box"
    },
    {
-    "t": 12.44,
+    "t": 13.98,
     "label": "route loaded"
    },
    {
-    "t": 18.44,
+    "t": 19.98,
     "label": "plan card"
+   },
+   {
+    "t": 25.69,
+    "label": "shared"
+   },
+   {
+    "t": 34.7,
+    "label": "whole route"
+   }
+  ]
+ },
+ {
+  "clip": "05-riders-join.mp4",
+  "scene": "riders-join",
+  "ok": true,
+  "seconds": 90.99,
+  "marks": [
+   {
+    "t": 73.09,
+    "label": "riders list"
+   },
+   {
+    "t": 80.75,
+    "label": "riders on map"
+   }
+  ]
+ },
+ {
+  "clip": "06-schedule-a.mp4",
+  "scene": "schedule-a",
+  "ok": true,
+  "seconds": 234.5,
+  "marks": [
+   {
+    "t": 185.57,
+    "label": "entry 0"
+   },
+   {
+    "t": 203.93,
+    "label": "entry 1"
+   }
+  ]
+ },
+ {
+  "clip": "07-schedule-b.mp4",
+  "scene": "schedule-b",
+  "ok": true,
+  "seconds": 193.58,
+  "marks": [
+   {
+    "t": 4.5,
+    "label": "entry 2"
+   },
+   {
+    "t": 28.0,
+    "label": "entry 3"
+   },
+   {
+    "t": 52.6,
+    "label": "entry 4"
+   },
+   {
+    "t": 78.72,
+    "label": "entry 5"
+   },
+   {
+    "t": 102.14,
+    "label": "entry 6"
+   },
+   {
+    "t": 126.11,
+    "label": "entry 7"
+   },
+   {
+    "t": 164.08,
+    "label": "entry 8"
+   }
+  ]
+ },
+ {
+  "clip": "08-packing.mp4",
+  "scene": "packing",
+  "ok": true,
+  "seconds": 92.01,
+  "marks": [
+   {
+    "t": 19.34,
+    "label": "shared by others"
+   },
+   {
+    "t": 24.06,
+    "label": "checklist"
+   },
+   {
+    "t": 77.53,
+    "label": "share Tyre inflator"
+   },
+   {
+    "t": 84.77,
+    "label": "card"
+   }
+  ]
+ },
+ {
+  "clip": "09-reminder.mp4",
+  "scene": "reminder",
+  "ok": true,
+  "seconds": 34.16,
+  "marks": [
+   {
+    "t": 1.5,
+    "label": "waiting"
+   },
+   {
+    "t": 22.55,
+    "label": "notification"
+   }
+  ]
+ },
+ {
+  "clip": "10-start-ride.mp4",
+  "scene": "start-ride",
+  "ok": true,
+  "seconds": 219.19,
+  "marks": [
+   {
+    "t": 191.76,
+    "label": "confirm"
+   },
+   {
+    "t": 197.27,
+    "label": "started"
+   }
+  ]
+ },
+ {
+  "clip": "11-riding.mp4",
+  "scene": "riding",
+  "ok": true,
+  "seconds": 99.84,
+  "marks": [
+   {
+    "t": 1.5,
+    "label": "riding"
+   },
+   {
+    "t": 16.88,
+    "label": "chat"
+   },
+   {
+    "t": 73.58,
+    "label": "chat open"
+   },
+   {
+    "t": 85.84,
+    "label": "break"
+   }
+  ]
+ },
+ {
+  "clip": "12-sos.mp4",
+  "scene": "sos",
+  "ok": true,
+  "seconds": 36.15,
+  "marks": [
+   {
+    "t": 5.12,
+    "label": "sos setup"
+   },
+   {
+    "t": 27.34,
+    "label": "countdown"
+   }
+  ]
+ },
+ {
+  "clip": "13-offline-maps.mp4",
+  "scene": "offline-maps",
+  "ok": true,
+  "seconds": 228.03,
+  "marks": [
+   {
+    "t": 5.97,
+    "label": "offline"
+   }
+  ]
+ },
+ {
+  "clip": "14-end-ride.mp4",
+  "scene": "end-ride",
+  "ok": true,
+  "seconds": 203.12,
+  "marks": [
+   {
+    "t": 191.51,
+    "label": "ended"
+   }
+  ]
+ },
+ {
+  "clip": "15-history.mp4",
+  "scene": "history",
+  "ok": true,
+  "seconds": 18.73,
+  "marks": [
+   {
+    "t": 7.26,
+    "label": "history"
    }
   ]
  }
