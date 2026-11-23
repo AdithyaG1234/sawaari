@@ -83,3 +83,18 @@ class PackingTest {
         assertNull(Packing.decode("not json"))
     }
 }
+
+class PackingLimitsTest {
+    @Test fun blankAndOverlongItemsAndTheItemLimit() {
+        var items = Packing.defaults()
+        assertEquals(items, Packing.add(items, "   ", "x")) // blank is ignored
+        items = Packing.add(items, "x".repeat(60), "long")
+        assertEquals(Packing.MAX_NAME, items.last().name.length)
+        var full = emptyList<PackItem>()
+        repeat(Packing.MAX_ITEMS + 5) { full = Packing.add(full, "Item $it", "i$it") }
+        assertEquals(Packing.MAX_ITEMS, full.size)
+        // Unknown fields and broken entries in saved data are skipped, not a crash.
+        assertEquals(listOf(PackItem("a", "Gloves", packed = true)), Packing.decode("""[{"id":"a","name":"Gloves","packed":true,"x":1},{"name":"no id"},3]"""))
+        assertNull(Packing.decode(null))
+    }
+}

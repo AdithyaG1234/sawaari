@@ -1,0 +1,13 @@
+{
+  "name": "sawaari-firebase-tests",
+  "private": true,
+  "description": "Release tests for database.rules.json, run against the Firebase Realtime Database emulator.",
+  "scripts": {
+    "test": "firebase emulators:exec --only database --project demo-sawaari \"node --test --test-reporter=spec --test-reporter-destination=stdout --test-reporter=junit --test-reporter-destination=build/rules-results.xml rules.test.mjs\""
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "6.0.0",
+    "firebase": "13.4.0",
+    "firebase-tools": "15.37.0"
+  }
+}
