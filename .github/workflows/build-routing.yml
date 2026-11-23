@@ -45,6 +45,8 @@ jobs:
 
   pack:
     needs: zones
+    # Build every pack whose zones downloaded, even if another zone's download failed.
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
