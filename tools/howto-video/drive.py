@@ -88,7 +88,9 @@ ROAD = line((13.0880, 77.4300), (13.1400, 77.3550), 60)
 class Firebase:
     def __init__(self):
         gs = json.load(open("app/google-services.json"))
-        self.db = gs["project_info"]["firebase_url"].rstrip("/")
+        pi = gs["project_info"]
+        # Same default as GroupRepository.sawaariDatabase().
+        self.db = pi.get("firebase_url") or f"https://{pi['project_id']}-default-rtdb.asia-southeast1.firebasedatabase.app"
         self.key = gs["client"][0]["api_key"][0]["current_key"]
         self.cert = os.environ.get("APP_SHA1", "")
 

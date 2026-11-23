@@ -32,7 +32,7 @@ jobs:
           python-version: "3.12"
       - name: Voice-over (Piper, offline text to speech)
         run: |
-          pip install -q piper-tts==1.2.0
+          pip install -q piper-tts==1.8.0
           mkdir -p voices
           base=https://huggingface.co/rhasspy/piper-voices/resolve/v1.0.0/en/en_US/lessac/medium
           curl -sSL -o voices/v.onnx "$base/en_US-lessac-medium.onnx"
