@@ -47,6 +47,8 @@ import app.sawaari.ride.ScheduleAlarms
 fun ScheduleCard(
     g: RideGroup, iAmLeader: Boolean, now: Long, busy: Boolean,
     onSave: (RideSchedule?) -> Unit, onStart: () -> Unit, onEnd: () -> Unit,
+    /** Leader only: clear all times and the started/ended state for the next ride. */
+    onClear: () -> Unit = {},
 ) {
     val schedule = g.schedule ?: RideSchedule()
     val rows = Schedule.rows(g.plan, g.schedule)
@@ -125,6 +127,11 @@ fun ScheduleCard(
                 }
             }
             if (phase == RidePhase.PLANNED) Text("Any rider can start or end the ride.", style = MaterialTheme.typography.bodySmall)
+            if (iAmLeader && (g.schedule != null || g.ride != null)) {
+                TextButton(onClick = { confirm = CLEAR }, enabled = !busy) {
+                    Text(if (phase == RidePhase.ENDED) "Clear schedule for the next ride" else "Clear schedule")
+                }
+            }
         }
     }
 
@@ -139,7 +146,16 @@ fun ScheduleCard(
             onDismiss = { editing = null },
         )
     }
-    confirm?.let { state ->
+    if (confirm == CLEAR) {
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text("Clear the schedule?") },
+            text = { Text("Removes all stop times for everyone and cancels the reminders on every phone. The route stays.") },
+            confirmButton = { Button(onClick = { onClear(); confirm = null }) { Text("Clear") } },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancel") } },
+        )
+    }
+    confirm?.takeIf { it != CLEAR }?.let { state ->
         val start = state == RideStatus.STARTED
         AlertDialog(
             onDismissRequest = { confirm = null },
@@ -155,6 +171,8 @@ fun ScheduleCard(
         )
     }
 }
+
+private const val CLEAR = "clear"
 
 /** The schedule with [key]'s time set to [t], or removed when [t] is null. */
 private fun RideSchedule.with(key: String, t: StopTime?): RideSchedule = when {

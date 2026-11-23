@@ -203,6 +203,30 @@ class GroupClientTest {
         assertNull(db.get("groups/$code/schedule"))
     }
 
+    @Test fun clearingTheRideClearsItsSchedule() {
+        val db = FakeBackend("leaderUid")
+        val leader = GroupClient(db, MemoryStore(), scope) { clock }
+        leader.create("Goa")
+        val code = leader.group.value!!.code
+        val plan = RidePlan(stops = listOf(GeoPoint(15.0, 74.0)), end = GeoPoint(15.5, 73.8))
+        val times = RideSchedule(start = StopTime(clock + 60_000), end = StopTime(clock + 300_000))
+
+        // "Clear schedule" keeps the route but drops the times and started/ended.
+        leader.sharePlan(plan); leader.saveSchedule(times); leader.startRide()
+        leader.clearSchedule()
+        assertNotNull(leader.group.value?.plan)
+        assertNull(leader.group.value?.schedule)
+        assertNull(leader.group.value?.ride)
+
+        // "Clear ride" removes the route, the schedule and the ride state together.
+        leader.saveSchedule(times); leader.endRide()
+        leader.clearSharedPlan()
+        assertNull(db.get("groups/$code/plan"))
+        assertNull(db.get("groups/$code/schedule"))
+        assertNull(db.get("groups/$code/ride"))
+        assertTrue(app.sawaari.ride.Schedule.upcoming(leader.group.value!!, clock).isEmpty())
+    }
+
     @Test fun leaveRemovesMe() {
         val db = FakeBackend("u1")
         val store = MemoryStore()
