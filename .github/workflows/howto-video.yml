@@ -16,7 +16,7 @@ on:
         default: ""
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: howto-video-${{ github.ref }}
@@ -42,6 +42,24 @@ jobs:
         with:
           name: howto-video-voice
           path: out/voice/
+      # Keep the files on the "howto-video-files" branch too (like ios-screenshots), so they can be fetched with git.
+      - name: Save to the howto-video-files branch
+        if: always()
+        env:
+          SUB: voice
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          url="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          for i in 1 2 3; do
+            rm -rf files
+            git clone -q --depth 1 --branch howto-video-files "$url" files 2>/dev/null || {
+              git init -q files && git -C files checkout -q --orphan howto-video-files && git -C files remote add origin "$url"; }
+            rm -rf "files/$SUB" && mkdir -p "files/$SUB" && cp -r out/voice/. "files/$SUB/"
+            git -C files add -A && git -C files commit -q -m "How-to video $SUB (${{ github.sha }})" || exit 0
+            git -C files push -q origin howto-video-files && exit 0
+            sleep 5
+          done
 
   record:
     runs-on: ubuntu-latest
@@ -89,3 +107,21 @@ jobs:
         with:
           name: howto-video-raw
           path: out/
+      # Keep the files on the "howto-video-files" branch too (like ios-screenshots), so they can be fetched with git.
+      - name: Save to the howto-video-files branch
+        if: always()
+        env:
+          SUB: raw
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          url="https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git"
+          for i in 1 2 3; do
+            rm -rf files
+            git clone -q --depth 1 --branch howto-video-files "$url" files 2>/dev/null || {
+              git init -q files && git -C files checkout -q --orphan howto-video-files && git -C files remote add origin "$url"; }
+            rm -rf "files/$SUB" && mkdir -p "files/$SUB" && cp -r out/. "files/$SUB/"
+            git -C files add -A && git -C files commit -q -m "How-to video $SUB (${{ github.sha }})" || exit 0
+            git -C files push -q origin howto-video-files && exit 0
+            sleep 5
+          done
