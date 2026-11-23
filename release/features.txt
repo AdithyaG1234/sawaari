@@ -1,0 +1,34 @@
+# Sawaari release checklist: every app feature and the automated tests that prove it works.
+# CI fails the release if any feature below has a test that failed or was skipped, or has no test that ran.
+#
+# Format:  Feature name | test, test, ...
+#   A Kotlin test is its class name (all its tests must pass), e.g. app.sawaari.plans.PlansTest
+#   A Firebase rules test is "rules:" plus the start of its name in firebase-tests/rules.test.mjs, e.g. rules:ride:
+#
+# When you add a feature, add a line here with its tests. When you add tests for an existing feature, list them.
+
+Offline maps and ride areas         | app.sawaari.offline.OfflineModelsTest, app.sawaari.util.FormatBytesTest
+Offline routing packs               | app.sawaari.nav.RoutingPacksTest, app.sawaari.nav.RoutingCoverageTest
+Online routing (iPhone, Valhalla)   | app.sawaari.routing.ValhallaTest
+Route steps and geometry            | app.sawaari.routing.RouteTest, app.sawaari.geo.GeoTest
+Turn-by-turn navigation and reroute | app.sawaari.nav.NavigationTrackerTest, app.sawaari.nav.NavSessionTest
+Voice directions                    | app.sawaari.nav.VoicePromptsTest, app.sawaari.nav.FormatTest
+Ride plans (start, 8 stops, round trip) | app.sawaari.nav.RidePlanTest, rules:route:
+Place search and names from the map | app.sawaari.places.PhotonTest, app.sawaari.nav.PlaceMatcherTest, app.sawaari.nav.PlaceNamesTest, app.sawaari.nav.SearchRankTest
+Place ratings                       | rules:places:
+Route links (Google Maps, coordinates, sharing) | app.sawaari.nav.RouteLinksTest, app.sawaari.share.LinkImportTest, app.sawaari.util.TextTest, app.sawaari.util.TextJvmTest
+Group rides: create, join with code, leave | app.sawaari.group.GroupClientTest, rules:group:
+Group rides: live locations         | rules:location:
+Group rides: meeting point          | rules:meet:
+Group rides: ride schedule and reminders | app.sawaari.ride.ScheduleTest, rules:schedule:
+Group rides: any rider starts or ends the ride | app.sawaari.group.GroupClientTest, rules:ride:
+Group rides: packing checklist and sharing | app.sawaari.ride.PackingTest, app.sawaari.ride.PackingLimitsTest, rules:packing:
+Group rides: roles, sweep and leader handover | rules:roles:
+Group chat and voice notes          | rules:chat:, rules:voice:
+Group alerts (break, stopped, off route, behind, lost signal) | app.sawaari.nav.GroupWatcherTest, rules:alerts:
+Shared contact details              | rules:contacts:
+SOS (SMS countdown and group alert) | app.sawaari.sos.SosTest, app.sawaari.nav.SosMessageTest, rules:sos:
+Crash detection                     | app.sawaari.nav.CrashLogicTest
+Ride history and stats              | app.sawaari.ride.RideLogTest, app.sawaari.nav.RideStatsTest
+Garage and service reminders        | app.sawaari.garage.GarageBookTest, app.sawaari.nav.GarageLogicTest
+Free and Pro plans (pricing switch, rider limit) | app.sawaari.plans.PlansTest, app.sawaari.group.GroupSeatsTest, rules:plans:

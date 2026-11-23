@@ -16,7 +16,35 @@ permissions:
   contents: write
 
 jobs:
+  # Release tests part 1: the Firebase security rules, for every group-ride feature, on the database emulator.
+  rules-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: firebase-tests/package-lock.json
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/firebase/emulators
+          key: firebase-emulators-${{ hashFiles('firebase-tests/package-lock.json') }}
+      - working-directory: firebase-tests
+        run: npm ci && mkdir -p build && npm test
+      - if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: rules-test-results
+          path: firebase-tests/build/rules-results.xml
+
   build:
+    # Release tests part 2 runs below; nothing is built or published unless the rules tests passed.
+    needs: rules-tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -30,6 +58,13 @@ jobs:
       - run: chmod +x gradlew && ./gradlew :shared:jvmTest testDebugUnitTest assembleDebug assembleRelease --stacktrace
         env:
           PLACES_API_KEY: ${{ secrets.PLACES_API_KEY }}
+      # Release gate: every feature in release/features.txt must have tests that ran and passed.
+      # A failure here stops the APKs from being published (debug, preview or release).
+      - uses: actions/download-artifact@v5
+        with:
+          name: rules-test-results
+          path: rules-results
+      - run: python3 release/check_features.py shared/build/test-results/jvmTest app/build/test-results/testDebugUnitTest rules-results
       - uses: actions/upload-artifact@v5
         with:
           name: sawaari-debug-apk

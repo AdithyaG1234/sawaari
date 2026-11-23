@@ -59,6 +59,14 @@ For SOS to send texts on its own, go to Settings → Apps → Sawaari → ⋮ �
 
 Test builds from main: https://github.com/AdithyaG1234/sawaari/releases/download/latest-debug/sawaari-debug.apk
 
+## Release tests
+Every release must pass the automated release tests. CI runs them on every push and pull request, and publishes no APK (debug, preview or release) unless they all pass.
+- **App logic:** `./gradlew :shared:jvmTest testDebugUnitTest` (navigation, voice prompts, ride plans, route links, schedule, packing, SOS, crash detection, garage, plans and more).
+- **Firebase rules:** `cd firebase-tests && npm ci && npm test` checks `database.rules.json` on the database emulator for every group-ride feature: joining, seats and pricing, roles and leader handover, route, meeting point, schedule, start/end ride, packing, locations, alerts, SOS, chat and voice notes. Needs Node 22 and Java 21.
+- **Feature checklist:** `release/features.txt` lists every feature and the tests that prove it. `python3 release/check_features.py shared/build/test-results/jvmTest app/build/test-results/testDebugUnitTest firebase-tests/build` fails if any feature has a failing test or none that ran. The table also shows on the CI run's summary page.
+
+When you add a feature, add its tests and a line in `release/features.txt`.
+
 ## Releasing
 Actions → Build APK → Run workflow, enter a version such as `1.0.0` (or push a tag like `v1.0.0`). CI builds the release APKs and publishes them as the latest release.
 
