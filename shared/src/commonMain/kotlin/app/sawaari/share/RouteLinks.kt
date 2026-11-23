@@ -52,6 +52,19 @@ object RouteLinks {
     /** The first link in a message (e.g. text shared from WhatsApp or Google Maps). */
     fun findUrl(text: String): String? = URL_IN_TEXT.find(text)?.value?.trimEnd('.', ',', ')', '"')
 
+    /**
+     * True when copied text is worth putting in the "paste a route" box: a Google Maps or Sawaari
+     * link, or plain coordinates. Anything else on the clipboard (a message, a file) is left out.
+     */
+    fun looksLikeRoute(text: String?): Boolean {
+        val t = text?.trim().orEmpty()
+        if (t.isEmpty() || t.length > 4000) return false
+        if (t.startsWith("sawaari://")) return true
+        val url = findUrl(t)
+        if (url != null) return isShortGoogleLink(url) || parse(url) != null
+        return latLon(t) != null
+    }
+
     fun isShortGoogleLink(url: String) = Regex("""^https?://(maps\.app\.goo\.gl|goo\.gl/maps)/""").containsMatchIn(url)
 
     /** Reads a Sawaari or (full, not short) Google Maps link. Null if it isn't a route or place link. */
