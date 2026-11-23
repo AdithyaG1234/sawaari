@@ -256,9 +256,22 @@ def scroll_to(**sel):
     clear_anr()
     if d(**sel).exists:
         return
+    # The phone's own scroller is fastest; fall back to swiping.
+    try:
+        lists = d(scrollable=True)
+        if lists.exists:
+            lists[len(lists) - 1].scroll.vert.to(**sel)
+            if d(**sel).exists:
+                return
+            lists[len(lists) - 1].scroll.vert.toBeginning(max_swipes=15)
+            lists[len(lists) - 1].scroll.vert.to(**sel)
+            if d(**sel).exists:
+                return
+    except Exception as e:  # noqa: BLE001
+        log("scroll", e)
     w, h = d.window_size()
     for direction in (1, -1):
-        for _ in range(10):
+        for _ in range(6):
             if direction > 0:
                 d.swipe(w // 2, int(h * 0.75), w // 2, int(h * 0.35), duration=0.35)
             else:
@@ -539,7 +552,6 @@ def shrink_plan():
 
 
 def scene_riders_join(rec, riders, code):
-    rec.start("riders-join")
     lat, lon = it.POINTS[0][1], it.POINTS[0][2]
     for r in riders:
         r.join(code)
@@ -552,6 +564,7 @@ def scene_riders_join(rec, riders, code):
         scroll_to(textStartsWith="Riders (")
     except Exception:  # noqa: BLE001
         pass
+    rec.start("riders-join")
     rec.mark("riders list")
     time.sleep(5)
     close_window()
@@ -588,13 +601,12 @@ def schedule_entry(i):
 
 
 def scene_schedule(rec, first, last, tag):
-    rec.start(tag)
     open_ride_window()
     scroll_to(text="Ride schedule")
     time.sleep(1)
     # Bring the card near the top.
     to_top("Ride schedule")
-    time.sleep(1.5)
+    rec.start(tag)
     for i in range(first, last + 1):
         rec.mark(f"entry {i}")
         try:
@@ -612,12 +624,11 @@ def scene_schedule(rec, first, last, tag):
 
 
 def scene_packing(rec):
-    rec.start("packing")
     open_ride_window()
     scroll_to(text="What to carry")
     time.sleep(1)
     to_top("What to carry")
-    time.sleep(2)
+    rec.start("packing")
     rec.mark("shared by others")
     time.sleep(3)
     tap(text="Open my checklist")
@@ -672,12 +683,11 @@ def scene_reminder(rec):
 
 
 def scene_start_ride(rec):
-    rec.start("start-ride")
     open_ride_window()
     scroll_to(text="Ride schedule")
     to_top("Ride schedule")
-    time.sleep(1.5)
     scroll_to(text="Start ride")
+    rec.start("start-ride")
     tap(text="Start ride", pause=2)
     rec.mark("confirm")
     time.sleep(2)
@@ -781,12 +791,12 @@ def scene_offline(rec):
 
 
 def scene_end_ride(rec, riders):
-    rec.start("end-ride")
-    riders[1].ride("ended")
-    time.sleep(2)
     open_ride_window()
     scroll_to(text="Ride schedule")
     to_top("Ride schedule")
+    rec.start("end-ride")
+    riders[1].ride("ended")
+    time.sleep(2)
     rec.mark("ended")
     time.sleep(6)
     close_window()
