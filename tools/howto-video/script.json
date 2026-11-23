@@ -28,7 +28,7 @@
     "id": "paste-route",
     "title": "4. Add the route",
     "caption": "Paste the Google Maps link. Every stop keeps its name from the map.",
-    "say": "Next, add the route. Plan it in Google Maps with all the stops, copy the link, then in Sawaari tap Paste Google Maps link and Load route. All nine places of Option 1 come in, each with its name from the map. Then tap Share plan with group, so every rider gets the same route."
+    "say": "Next, add the route. Plan it in Google Maps with all the stops, copy the link, then in Sawaari tap Paste Google Maps link and Load route. All nine places of Option 1 come in, each with its name from the map. Then tap Share plan with group, so every rider gets the same route. The red notes only mean offline turn by turn navigation doesn't cover this long route yet. The group plan, schedule and live tracking all work."
   },
   {
     "id": "riders-join",

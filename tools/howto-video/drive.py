@@ -44,7 +44,11 @@ def log(*a):
 
 # ---------------------------------------------------------------- GPS
 
+LEADER_POS = [0.0, 0.0]
+
+
 def gps(lat, lon):
+    LEADER_POS[0], LEADER_POS[1] = lat, lon
     adb("emu", "geo", "fix", f"{lon:.6f}", f"{lat:.6f}")
 
 
@@ -374,20 +378,19 @@ def pick_date_time(day, hhmm):
         d(text=str(day), className="android.view.View").click()
     time.sleep(0.6)
     tap(resourceId="android:id/button1", pause=1.0)
-    # Time picker: switch to typing, then hour, minute, AM/PM.
-    if d(descriptionContains="text input mode").exists:
-        d(descriptionContains="text input mode").click()
-        time.sleep(0.6)
+    # Time picker (clock face): tap the hour, then the minutes, then AM or PM.
     h12 = h % 12 or 12
-    d(resourceId="android:id/input_hour").set_text(str(h12))
-    d(resourceId="android:id/input_minute").set_text(f"{m:02d}")
-    ampm = "AM" if h < 12 else "PM"
-    sp = d(resourceId="android:id/am_pm_spinner")
-    if sp.exists and sp.get_text() != ampm:
-        sp.click()
-        time.sleep(0.5)
-        tap(text=ampm, pause=0.5)
+    d(resourceId="android:id/radial_picker").wait(timeout=5)
+    d(resourceId="android:id/radial_picker").child(description=str(h12)).click()
+    time.sleep(0.8)
+    for desc in (str(m), f"{m:02d}"):
+        el = d(resourceId="android:id/radial_picker").child(description=desc)
+        if el.exists:
+            el.click()
+            break
     time.sleep(0.6)
+    d(resourceId="android:id/am_label" if h < 12 else "android:id/pm_label").click()
+    time.sleep(0.8)
     tap(resourceId="android:id/button1", pause=1.0)
 
 
@@ -413,6 +416,7 @@ def scene_first_open(rec):
 
 def scene_profile_name(rec):
     rec.start("profile-name")
+    shrink_plan()
     tap(description="Profile and settings")
     rec.mark("profile")
     type_into("Your name", it.LEADER)
@@ -474,8 +478,38 @@ def scene_paste_route(rec):
         time.sleep(2)
         tap(textContains="Share plan with group", pause=3)
         rec.mark("shared")
-    time.sleep(3)
+    time.sleep(2)
+    shrink_plan()
+    try:
+        open_ride_window()
+        scroll_to(text="Show route on map")
+        tap(text="Show route on map", pause=2)
+        rec.mark("whole route")
+    except Exception:  # noqa: BLE001
+        log(traceback.format_exc())
+        debug("show-route")
+    time.sleep(6)
     rec.stop()
+
+
+def heartbeat(riders):
+    """Keep the other riders' phones 'online': they stay near the leader and send a location every 10 s."""
+    def go():
+        while True:
+            for r in riders:
+                if r.code:
+                    try:
+                        r.at(LEADER_POS[0], LEADER_POS[1], 15.0)
+                    except Exception as e:  # noqa: BLE001
+                        log("heartbeat", e)
+            time.sleep(10)
+    threading.Thread(target=go, daemon=True).start()
+
+
+def shrink_plan():
+    if d(description="Shrink").exists:
+        d(description="Shrink").click()
+        time.sleep(1.2)
 
 
 def scene_riders_join(rec, riders, code):
@@ -485,6 +519,7 @@ def scene_riders_join(rec, riders, code):
         r.join(code)
         r.at(lat, lon)
         r.share_gear()
+    heartbeat(riders)
     open_ride_window()
     time.sleep(2)
     try:
@@ -494,8 +529,11 @@ def scene_riders_join(rec, riders, code):
     rec.mark("riders list")
     time.sleep(5)
     close_window()
+    shrink_plan()
+    if d(description="My location").exists:
+        d(description="My location").click()
     rec.mark("riders on map")
-    time.sleep(5)
+    time.sleep(7)
     rec.stop()
 
 
@@ -539,9 +577,10 @@ def scene_schedule(rec, first, last, tag):
             log(traceback.format_exc())
             debug(f"schedule-{i}")
             for _ in range(3):
-                if d(text="Cancel").exists:
-                    d(text="Cancel").click()
-                    time.sleep(0.5)
+                for t in ("CANCEL", "Cancel"):
+                    if d(text=t).exists:
+                        d(text=t).click()
+                        time.sleep(0.5)
     time.sleep(3)
     rec.stop()
 
@@ -559,8 +598,10 @@ def scene_packing(rec):
     rec.mark("checklist")
     time.sleep(1.5)
     for item in ("Helmet", "Riding jacket", "Gloves", "Driving licence"):
-        box = in_row(item, className="android.widget.CheckBox")
-        if box:
+        a = d(text=item)
+        boxes = [e for e in d(className="android.widget.CheckBox") if a.exists and abs(center_y(e) - center_y(a)) < 50]
+        box = min(boxes, key=lambda e: e.info["bounds"]["left"]) if boxes else None
+        if box and box.info["bounds"]["left"] < a.info["bounds"]["left"]:
             box.click()
             time.sleep(0.8)
     lists = d(scrollable=True)
@@ -629,18 +670,6 @@ def scene_riding(rec, riders, drive):
     drive.run(ROAD, 1.0)
     rec.mark("riding")
 
-    def follow():
-        for k in range(0, len(ROAD), 4):
-            lat, lon = ROAD[min(k, len(ROAD) - 1)]
-            for r in riders:
-                try:
-                    r.at(lat, lon, 16.0)
-                except Exception as e:  # noqa: BLE001
-                    log(e)
-            time.sleep(4)
-
-    t = threading.Thread(target=follow, daemon=True)
-    t.start()
     time.sleep(4)
     if d(description="My location").exists:
         d(description="My location").click()
@@ -671,7 +700,9 @@ def scene_riding(rec, riders, drive):
 
 
 def scene_sos(rec):
+    shrink_plan()
     rec.start("sos")
+    shrink_plan()
     tap(description="Profile and settings")
     scroll_to(text="Set up SOS contacts")
     tap(text="Set up SOS contacts")
@@ -698,6 +729,7 @@ def scene_sos(rec):
 
 def scene_offline(rec):
     rec.start("offline-maps")
+    shrink_plan()
     tap(description="Profile and settings")
     tap(text="Offline maps and navigation", pause=2)
     rec.mark("offline")
@@ -738,6 +770,7 @@ def scene_end_ride(rec, riders):
 
 def scene_history(rec):
     rec.start("history")
+    shrink_plan()
     tap(description="Profile and settings")
     scroll_to(text="Ride history and stats")
     tap(text="Ride history and stats", pause=3)
