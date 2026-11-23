@@ -22,6 +22,7 @@ import itinerary as it  # noqa: E402
 
 W, H = 1920, 1080
 FPS = 30
+MAX_SPEED = 2.5
 BG = (15, 23, 42)
 PANEL = (30, 41, 59)
 ACCENT = (249, 115, 22)
@@ -201,10 +202,15 @@ def main(raw, voices, dest):
         if not clip or not os.path.exists(clip) or not t.get("ok", True):
             print("no good clip for", s["id"], "- skipped")
             continue
-        length = clip_seconds(clip) - 1.0  # drop the first second (recording warm-up)
+        # Skip the recording warm-up, and any long wait before the first marked moment.
+        marks = [m["t"] for m in t.get("marks", [])]
+        skip = max(1.0, min(marks) - 2.0) if marks and min(marks) > 8 else 1.0
+        length = clip_seconds(clip) - skip
+        # Speed the phone up to fit the voice, but not so much that taps are hard to follow;
+        # past that, the scene runs longer than its voice-over.
         speed = max(1.0, length / target)
-        if speed > 4.0:
-            speed = 4.0
+        if speed > MAX_SPEED:
+            speed = MAX_SPEED
             target = length / speed
         bg, sub_top = scene_background(s["title"], s["caption"], (len(step_ids), step_ids.index(s["title"])))
         bgp = f"{tmp}/{n:02d}-bg.png"
@@ -212,7 +218,7 @@ def main(raw, voices, dest):
         # Subtitles: one sentence at a time, timed by length over the voice-over.
         subs = sentences(s["say"])
         total_chars = sum(len(x) for x in subs)
-        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bgp, "-ss", "1.0", "-i", clip, "-i", wav]
+        inputs = ["-loop", "1", "-framerate", str(FPS), "-i", bgp, "-ss", f"{skip:.2f}", "-i", clip, "-i", wav]
         filt = [f"[1:v]setpts=(PTS-STARTPTS)/{speed:.4f},scale={PHONE_W}:{PHONE_H},fps={FPS},"
                 f"tpad=stop_mode=clone:stop_duration=30[ph]",
                 f"[0:v][ph]overlay={PHONE_X}:{PHONE_Y}:shortest=0[v0]"]

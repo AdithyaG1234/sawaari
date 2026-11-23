@@ -756,10 +756,16 @@ def scene_sos(rec):
     time.sleep(1)
     d.press("back")
     time.sleep(1.5)
-    tap(text="SOS", pause=1)
+    d(text="SOS").click()
     rec.mark("countdown")
-    time.sleep(3)
-    tap(text="CANCEL", pause=2)
+    cancel = d(text="CANCEL")
+    cancel.wait(timeout=3)
+    time.sleep(1.2)
+    cancel.click()
+    time.sleep(2)
+    if d.app_current().get("package") != PKG:  # SOS went out after all: back to Sawaari
+        d.app_start(PKG)
+        time.sleep(3)
     rec.stop()
 
 
