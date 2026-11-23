@@ -203,6 +203,7 @@ fun GroupScreen(
             ScheduleCard(
                 g, iAmLeader, now, busy,
                 onSave = repo::saveSchedule, onStart = repo::startRide, onEnd = repo::endRide,
+                onClear = repo::clearSchedule,
             )
         }
 
@@ -301,7 +302,17 @@ fun GroupScreen(
                                 if (iAmLeader) "Everyone sees it on their map." else "Open the Map tab and tap Ride this plan.",
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        if (iAmLeader) TextButton(onClick = { repo.clearSharedPlan() }) { Text("Stop sharing plan") }
+                        if (iAmLeader) {
+                            var confirmClear by remember { mutableStateOf(false) }
+                            TextButton(onClick = { confirmClear = true }) { Text("Clear ride") }
+                            if (confirmClear) androidx.compose.material3.AlertDialog(
+                                onDismissRequest = { confirmClear = false },
+                                title = { Text("Clear this ride?") },
+                                text = { Text("Removes the route and the ride schedule for everyone. Stop reminders are cancelled on every phone.") },
+                                confirmButton = { Button(onClick = { confirmClear = false; repo.clearSharedPlan() }) { Text("Clear ride") } },
+                                dismissButton = { TextButton(onClick = { confirmClear = false }) { Text("Cancel") } },
+                            )
+                        }
                     }
                 }
             }
