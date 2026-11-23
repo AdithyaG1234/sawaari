@@ -298,17 +298,20 @@ def hide_keyboard():
 
 
 def type_into(label, text):
+    """Tap the field labelled [label] and type [text] into it (whatever has focus gets the text)."""
     for attempt in range(3):
-        f = field(label)
-        f.click()
-        time.sleep(0.8)
-        if attempt == 0:
-            f.set_text(text)
-        else:
-            f.clear_text()
-            d.send_keys(text, clear=True)
+        lab = d(textContains=label)
+        if not lab.wait(timeout=5):
+            raise RuntimeError(f"no field {label}")
+        lab.click()
         time.sleep(1.0)
-        if text in (field(label).get_text() or ""):
+        try:
+            d.send_keys(text, clear=True)
+        except Exception as e:  # noqa: BLE001
+            log("send_keys", e)
+            d(focused=True).set_text(text)
+        time.sleep(1.2)
+        if d(text=text).exists or d(textContains=text[:12]).exists:
             return
         log("retyping", label)
     raise RuntimeError(f"couldn't type into {label}")
@@ -853,13 +856,16 @@ def main():
         if only and name not in only.split(","):
             continue
         log("scene", name)
+        critical = name in ("create-group", "paste-route")
         try:
             if name == "create-group":
                 code = scene_create_group(rec)
                 if not code:
                     raise RuntimeError("no group code")
+                critical = False
             else:
                 fn()
+            critical = False
         except Exception:  # noqa: BLE001
             log(traceback.format_exc())
             debug(f"fail-{name}")
@@ -867,6 +873,9 @@ def main():
                 rec.stop(ok=False)
             except Exception:  # noqa: BLE001
                 pass
+            if critical:
+                log("stopping: the rest of the video depends on this scene")
+                break
             for _ in range(3):
                 d.press("back")
             d.app_start(PKG)
